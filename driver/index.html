@@ -158,6 +158,10 @@
     background: #eee;
     color: #333;
   }
+  #clearBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   #signBtn {
     background: #2563eb;
     color: #fff;
@@ -256,6 +260,7 @@
 </div>
 
 <div class="card" id="docCard" style="display:none;">
+  <a class="home-link" href="#" id="docBackLink" style="margin-top:0; margin-bottom:14px;">← Înapoi la pagina principală</a>
   <h1>Document de semnat</h1>
   <h2 id="docTitle"></h2>
   <div class="doc-meta">
@@ -340,6 +345,12 @@
 
   var currentDoc = null;
   var signaturePad = null;
+  var documentSigned = false;
+
+  document.getElementById('docBackLink').addEventListener('click', function (e) {
+    e.preventDefault();
+    location.href = location.pathname;
+  });
 
   function showWelcome() {
     stateCard.style.display = 'block';
@@ -597,10 +608,13 @@
       verifyLinkEl.textContent = verifyLink;
 
       resultBox.classList.add('show');
+      documentSigned = true;
+      clearBtn.disabled = true;
+      signaturePad.off();
     } catch (err) {
       showError('Eroare la salvare: ' + (err.message || JSON.stringify(err)));
     } finally {
-      signBtn.disabled = signaturePad.isEmpty();
+      signBtn.disabled = documentSigned || signaturePad.isEmpty();
       signBtn.textContent = 'Semnează';
     }
   });
