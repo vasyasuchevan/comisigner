@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panou birou — Documente semnate</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    padding: 16px;
+    color: #1a1a1a;
+  }
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  h1 { font-size: 22px; margin: 0; }
+  .subtitle { font-size: 13px; color: #666; margin-top: 2px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+  #refreshBtn { background: #eee; color: #333; }
+  #logoutBtn { background: #eee; color: #333; }
+  .login-wrap {
+    max-width: 360px;
+    margin: 60px auto 0;
+  }
+  .login-wrap h1 { font-size: 20px; margin-bottom: 4px; }
+  .login-wrap .subtitle { margin-bottom: 16px; }
+  .login-field { margin-bottom: 12px; }
+  .login-field label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 4px;
+  }
+  .login-field input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  #loginBtn {
+    width: 100%;
+    background: #2563eb;
+    color: #fff;
+    margin-top: 4px;
+  }
+  #loginBtn:disabled { background: #93b4f5; cursor: not-allowed; }
+  .login-error {
+    color: #c0342c;
+    background: #fdecea;
+    border: 1px solid #f3c1bd;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13.5px;
+    margin-top: 12px;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  .home-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    margin-top: 16px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .state-msg {
+    padding: 24px 8px;
+    text-align: center;
+    color: #777;
+    font-size: 14px;
+  }
+  .state-msg.error { color: #c0342c; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .table-scroll { overflow-x: auto; }
+  th, td {
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 1px solid #eee;
+    white-space: nowrap;
+  }
+  th { color: #777; font-weight: 600; font-size: 12.5px; text-transform: uppercase; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: #f7f9fc; }
+  .badge {
+    display: inline-block;
+    background: #e6f4ea;
+    color: #1e7e34;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 12px;
+    overflow-y: auto;
+    z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 520px;
+    width: 100%;
+    padding: 20px;
+  }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .modal-head h2 { font-size: 18px; margin: 0; }
+  #closeModalBtn { background: #eee; color: #333; padding: 6px 12px; }
+  .field { margin-bottom: 10px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 2px;
+  }
+  .field .value {
+    font-size: 13.5px;
+    word-break: break-word;
+  }
+  .field .value.mono {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    word-break: break-all;
+    background: #f5f5f5;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #eaeaea;
+  }
+  .doc-content {
+    background: #fafafa;
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .sig-img {
+    max-width: 260px;
+    width: 100%;
+    border: 1px solid #eaeaea;
+    border-radius: 6px;
+    background: #fff;
+    display: block;
+  }
+  #verifyBtn { background: #2563eb; color: #fff; margin-top: 6px; }
+  #verifyBtn:disabled { background: #93b4f5; cursor: not-allowed; }
+  .verify-result {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    display: none;
+  }
+  .verify-result.show { display: block; }
+  .verify-result.ok { background: #e6f4ea; color: #1e7e34; }
+  .verify-result.bad { background: #fdecea; color: #c0342c; }
+  .badge.pending { background: #fff4e0; color: #a15c00; }
+  #addDocBtn { background: #2563eb; color: #fff; }
+  .upload-card {
+    display: none;
+    margin-bottom: 16px;
+  }
+  .upload-card.show { display: block; }
+  .upload-field { margin-bottom: 12px; }
+  .upload-field label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 4px;
+  }
+  .upload-field input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  #submitDocBtn { background: #2563eb; color: #fff; }
+  #submitDocBtn:disabled { background: #93b4f5; cursor: not-allowed; }
+  .upload-error {
+    color: #c0342c;
+    background: #fdecea;
+    border: 1px solid #f3c1bd;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13.5px;
+    margin-top: 12px;
+    display: none;
+  }
+  .upload-error.show { display: block; }
+  .link-result {
+    display: none;
+    margin-top: 12px;
+    background: #e6f4ea;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .link-result.show { display: block; }
+  .link-result .value {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px;
+    word-break: break-all;
+    background: #fff;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #d6ead9;
+    margin: 6px 0 10px;
+  }
+  #copyLinkBtn { background: #1e7e34; color: #fff; }
+  .link-panel {
+    text-align: center;
+    padding: 16px 8px;
+  }
+  .link-panel .value {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px;
+    word-break: break-all;
+    background: #f5f5f5;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #eaeaea;
+    margin: 10px 0;
+  }
+  .qr-wrap { text-align: center; margin: 10px 0; }
+  .qr-wrap svg { width: 140px; height: 140px; }
+  #chainBtn { background: #eee; color: #333; }
+  .chain-result {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    display: none;
+  }
+  .chain-result.show { display: block; }
+  .chain-result.ok { background: #e6f4ea; color: #1e7e34; }
+  .chain-result.bad { background: #fdecea; color: #c0342c; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginWrap">
+  <div class="card">
+    <h1>Autentificare birou</h1>
+    <div class="subtitle">Accesul la documentele semnate este restricționat la personalul autorizat.</div>
+    <div class="login-field">
+      <label for="loginEmail">E-mail</label>
+      <input type="email" id="loginEmail" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label for="loginPassword">Parolă</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <button id="loginBtn" type="button">Autentificare</button>
+    <div class="login-error" id="loginError"></div>
+    <a class="home-link" href="/">← Pagina principală</a>
+  </div>
+</div>
+
+<div class="wrap" id="appWrap" style="display:none;">
+  <div class="top-bar">
+    <div>
+      <h1>Documente semnate</h1>
+      <div class="subtitle" id="countLabel">Se încarcă…</div>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="addDocBtn" type="button">+ Adaugă document</button>
+      <button id="chainBtn" type="button">Verifică lanțul complet</button>
+      <button id="refreshBtn" type="button">Reîmprospătează</button>
+      <button id="logoutBtn" type="button">Deconectare</button>
+    </div>
+  </div>
+
+  <div class="chain-result" id="chainResult"></div>
+
+  <div class="card upload-card" id="uploadCard">
+    <h2 style="margin:0 0 12px;">Adaugă document nou</h2>
+    <div class="upload-field">
+      <label for="docTitle">Titlu</label>
+      <input type="text" id="docTitle" placeholder="ex: Aviz de expediție">
+    </div>
+    <div class="upload-field">
+      <label for="docRoute">Traseu</label>
+      <input type="text" id="docRoute" placeholder="ex: Chișinău → Iași">
+    </div>
+    <div class="upload-field">
+      <label for="docDate">Data</label>
+      <input type="date" id="docDate">
+    </div>
+    <div class="upload-field">
+      <label for="docFile">Fișier (PDF sau imagine)</label>
+      <input type="file" id="docFile" accept="application/pdf,image/*">
+    </div>
+    <button id="submitDocBtn" type="button">Încarcă și generează link</button>
+    <div class="upload-error" id="uploadError"></div>
+    <div class="link-result" id="linkResult">
+      <div>✓ Document încărcat. Trimiteți acest link șoferului:</div>
+      <div class="value" id="linkValue"></div>
+      <div class="qr-wrap" id="linkQr"></div>
+      <button id="copyLinkBtn" type="button">Copiază linkul</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="stateMsg" class="state-msg">Se încarcă documentele…</div>
+    <div class="table-scroll">
+      <table id="docsTable" style="display:none;">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Traseu</th>
+            <th>Data</th>
+            <th>Șofer</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="docsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Detalii document</h2>
+      <button id="closeModalBtn" type="button">Închide</button>
+    </div>
+
+    <div id="signedDetail">
+      <div class="field">
+        <label>ID document</label>
+        <div class="value" id="mDocId"></div>
+      </div>
+      <div class="field">
+        <label>Șofer</label>
+        <div class="value" id="mDriver"></div>
+      </div>
+      <div class="field">
+        <label>Data/ora semnării (ISO 8601)</label>
+        <div class="value" id="mSignedAt"></div>
+      </div>
+      <div class="field">
+        <label>ID dispozitiv</label>
+        <div class="value mono" id="mDevice"></div>
+      </div>
+      <div class="field">
+        <label>Hash SHA-256</label>
+        <div class="value mono" id="mHash"></div>
+      </div>
+      <div class="field">
+        <label>Conținutul documentului la momentul semnării</label>
+        <div class="doc-content" id="mDocContent"></div>
+      </div>
+      <div class="field">
+        <label>Imagine semnătură</label>
+        <img class="sig-img" id="mSigImg" alt="semnătură">
+      </div>
+
+      <button id="verifyBtn" type="button">Verifică integritatea</button>
+      <div class="verify-result" id="verifyResult"></div>
+    </div>
+
+    <div id="pendingDetail" class="link-panel">
+      <div><b id="pTitle"></b></div>
+      <div id="pMeta" style="color:#666; font-size:13.5px; margin-top:4px;"></div>
+      <div>Link pentru șofer:</div>
+      <div class="value" id="pLink"></div>
+      <div class="qr-wrap" id="pQr"></div>
+      <button id="copyPendingLinkBtn" type="button">Copiază linkul</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script>
+  var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+</script>
+<script>
+(function () {
+  var stateMsg = document.getElementById('stateMsg');
+  var table = document.getElementById('docsTable');
+  var tbody = document.getElementById('docsBody');
+  var countLabel = document.getElementById('countLabel');
+  var refreshBtn = document.getElementById('refreshBtn');
+  var logoutBtn = document.getElementById('logoutBtn');
+  var chainBtn = document.getElementById('chainBtn');
+  var chainResult = document.getElementById('chainResult');
+  var overlay = document.getElementById('overlay');
+  var closeModalBtn = document.getElementById('closeModalBtn');
+  var verifyBtn = document.getElementById('verifyBtn');
+  var verifyResult = document.getElementById('verifyResult');
+
+  var loginWrap = document.getElementById('loginWrap');
+  var appWrap = document.getElementById('appWrap');
+  var loginEmail = document.getElementById('loginEmail');
+  var loginPassword = document.getElementById('loginPassword');
+  var loginBtn = document.getElementById('loginBtn');
+  var loginError = document.getElementById('loginError');
+
+  var addDocBtn = document.getElementById('addDocBtn');
+  var uploadCard = document.getElementById('uploadCard');
+  var docTitle = document.getElementById('docTitle');
+  var docRoute = document.getElementById('docRoute');
+  var docDate = document.getElementById('docDate');
+  var docFile = document.getElementById('docFile');
+  var submitDocBtn = document.getElementById('submitDocBtn');
+  var uploadError = document.getElementById('uploadError');
+  var linkResult = document.getElementById('linkResult');
+  var linkValue = document.getElementById('linkValue');
+  var copyLinkBtn = document.getElementById('copyLinkBtn');
+
+  var signedDetail = document.getElementById('signedDetail');
+  var pendingDetail = document.getElementById('pendingDetail');
+
+  var currentRow = null;
+
+  addDocBtn.addEventListener('click', function () {
+    uploadCard.classList.toggle('show');
+  });
+
+  function showLogin() {
+    loginWrap.style.display = 'block';
+    appWrap.style.display = 'none';
+  }
+
+  function showApp() {
+    loginWrap.style.display = 'none';
+    appWrap.style.display = 'block';
+    loadDocs();
+  }
+
+  async function checkSession() {
+    var sessionResult = await sb.auth.getSession();
+    if (sessionResult.data.session) {
+      showApp();
+    } else {
+      showLogin();
+    }
+  }
+
+  loginBtn.addEventListener('click', async function () {
+    loginError.classList.remove('show');
+    var email = loginEmail.value.trim();
+    var password = loginPassword.value;
+    if (!email || !password) {
+      loginError.textContent = 'Introduceți e-mail și parolă.';
+      loginError.classList.add('show');
+      return;
+    }
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Se autentifică…';
+    var result = await sb.auth.signInWithPassword({ email: email, password: password });
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Autentificare';
+    if (result.error) {
+      loginError.textContent = 'Autentificare eșuată: ' + result.error.message;
+      loginError.classList.add('show');
+      return;
+    }
+    loginPassword.value = '';
+    showApp();
+  });
+
+  logoutBtn.addEventListener('click', async function () {
+    await sb.auth.signOut();
+    showLogin();
+  });
+
+  function fmtDate(iso) {
+    try {
+      var d = new Date(iso);
+      return d.toLocaleString('ro-RO');
+    } catch (e) {
+      return iso;
+    }
+  }
+
+  async function loadDocs() {
+    stateMsg.style.display = 'block';
+    stateMsg.className = 'state-msg';
+    stateMsg.textContent = 'Se încarcă documentele…';
+    table.style.display = 'none';
+    tbody.innerHTML = '';
+
+    var signedResult = await sb
+      .from('signed_documents')
+      .select('*, documents(*)')
+      .order('signed_at', { ascending: false });
+
+    if (signedResult.error) {
+      stateMsg.className = 'state-msg error';
+      stateMsg.textContent = 'Eroare la încărcare: ' + signedResult.error.message;
+      countLabel.textContent = '';
+      return;
+    }
+
+    var pendingResult = await sb
+      .from('documents')
+      .select('*')
+      .eq('status', 'pending')
+      .order('doc_date', { ascending: false });
+
+    if (pendingResult.error) {
+      stateMsg.className = 'state-msg error';
+      stateMsg.textContent = 'Eroare la încărcare: ' + pendingResult.error.message;
+      countLabel.textContent = '';
+      return;
+    }
+
+    var items = [];
+    signedResult.data.forEach(function (r) { items.push({ type: 'signed', data: r }); });
+    pendingResult.data.forEach(function (d) { items.push({ type: 'pending', data: d }); });
+
+    items.sort(function (a, b) {
+      var da = new Date(a.type === 'signed' ? a.data.signed_at : a.data.doc_date);
+      var db = new Date(b.type === 'signed' ? b.data.signed_at : b.data.doc_date);
+      return db - da;
+    });
+
+    countLabel.textContent = 'Total: ' + items.length + ' document(e)';
+
+    if (items.length === 0) {
+      stateMsg.className = 'state-msg';
+      stateMsg.textContent = 'Niciun document încă.';
+      return;
+    }
+
+    stateMsg.style.display = 'none';
+    table.style.display = '';
+
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      if (item.type === 'signed') {
+        var r = item.data;
+        var doc = r.documents;
+        var title = doc ? doc.title : r.document_id;
+        var route = doc ? doc.route : '—';
+        var dateStr = doc ? doc.doc_date : fmtDate(r.signed_at);
+        tr.innerHTML =
+          '<td>' + escapeHtml(title) + '</td>' +
+          '<td>' + escapeHtml(route) + '</td>' +
+          '<td>' + escapeHtml(dateStr) + '</td>' +
+          '<td>' + escapeHtml(r.driver_name) + '</td>' +
+          '<td><span class="badge">✓ Semnat</span></td>';
+        tr.addEventListener('click', function () { openSignedModal(r); });
+      } else {
+        var d = item.data;
+        tr.innerHTML =
+          '<td>' + escapeHtml(d.title) + '</td>' +
+          '<td>' + escapeHtml(d.route) + '</td>' +
+          '<td>' + escapeHtml(d.doc_date) + '</td>' +
+          '<td>—</td>' +
+          '<td><span class="badge pending">În așteptare</span></td>';
+        tr.addEventListener('click', function () { openPendingModal(d); });
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function renderQr(elementId, text) {
+    var el = document.getElementById(elementId);
+    try {
+      var qr = qrcode(0, 'M');
+      qr.addData(text);
+      qr.make();
+      el.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+    } catch (err) {
+      el.innerHTML = '';
+    }
+  }
+
+  async function getSignedImageUrl(path) {
+    var result = await sb.storage.from('signatures').createSignedUrl(path, 3600);
+    if (result.error) throw result.error;
+    return result.data.signedUrl;
+  }
+
+  async function openSignedModal(row) {
+    currentRow = row;
+    signedDetail.style.display = 'block';
+    pendingDetail.style.display = 'none';
+
+    document.getElementById('mDocId').textContent = row.document_id;
+    document.getElementById('mDriver').textContent = row.driver_name;
+    document.getElementById('mSignedAt').textContent = row.signed_at;
+    document.getElementById('mDevice').textContent = row.device_id;
+    document.getElementById('mHash').textContent = row.hash;
+    document.getElementById('mDocContent').textContent = row.document_content;
+    document.getElementById('mSigImg').src = '';
+
+    verifyResult.className = 'verify-result';
+    verifyResult.textContent = '';
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = 'Verifică integritatea';
+
+    overlay.classList.add('show');
+
+    try {
+      document.getElementById('mSigImg').src = await getSignedImageUrl(row.signature_path);
+    } catch (err) {
+      verifyResult.className = 'verify-result show bad';
+      verifyResult.textContent = 'Eroare la încărcarea imaginii: ' + err.message;
+    }
+  }
+
+  function openPendingModal(doc) {
+    currentRow = null;
+    signedDetail.style.display = 'none';
+    pendingDetail.style.display = 'block';
+
+    document.getElementById('pTitle').textContent = doc.title;
+    document.getElementById('pMeta').textContent = doc.route + ' · ' + doc.doc_date;
+    var link = location.origin + '/driver/?id=' + doc.id;
+    document.getElementById('pLink').textContent = link;
+    renderQr('pQr', link);
+    document.getElementById('copyPendingLinkBtn').onclick = function () {
+      navigator.clipboard.writeText(link);
+      this.textContent = 'Copiat!';
+      var btn = this;
+      setTimeout(function () { btn.textContent = 'Copiază linkul'; }, 1500);
+    };
+
+    overlay.classList.add('show');
+  }
+
+  function closeModal() {
+    overlay.classList.remove('show');
+    currentRow = null;
+  }
+
+  closeModalBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closeModal();
+  });
+  refreshBtn.addEventListener('click', loadDocs);
+
+  function bufferToHex(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) {
+      hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+  }
+
+  async function sha256Hex(text) {
+    var enc = new TextEncoder();
+    var data = enc.encode(text);
+    var digest = await crypto.subtle.digest('SHA-256', data);
+    return bufferToHex(digest);
+  }
+
+  async function sha256HexFromBuffer(buffer) {
+    var digest = await crypto.subtle.digest('SHA-256', buffer);
+    return bufferToHex(digest);
+  }
+
+  function arrayBufferToBase64(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  verifyBtn.addEventListener('click', async function () {
+    if (!currentRow) return;
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = 'Se verifică…';
+    verifyResult.className = 'verify-result';
+    verifyResult.textContent = '';
+
+    try {
+      var signedUrl = await getSignedImageUrl(currentRow.signature_path);
+      var imgResp = await fetch(signedUrl);
+      if (!imgResp.ok) throw new Error('nu s-a putut descărca imaginea semnăturii');
+      var buf = await imgResp.arrayBuffer();
+      var base64 = arrayBufferToBase64(buf);
+      var sigDataUrl = 'data:image/png;base64,' + base64;
+
+      var docContentPart;
+      if (currentRow.document_ref && currentRow.documents) {
+        var docUrl = sb.storage.from('documents').getPublicUrl(currentRow.documents.file_path).data.publicUrl;
+        var docResp = await fetch(docUrl);
+        if (!docResp.ok) throw new Error('nu s-a putut descărca documentul original');
+        var docBuf = await docResp.arrayBuffer();
+        docContentPart = await sha256HexFromBuffer(docBuf);
+      } else {
+        docContentPart = currentRow.document_content;
+      }
+
+      var combined = docContentPart + '|' + sigDataUrl + '|' + currentRow.signed_at + '|' + currentRow.device_id;
+      var recomputedHash = await sha256Hex(combined);
+
+      if (recomputedHash === currentRow.hash) {
+        verifyResult.className = 'verify-result show ok';
+        verifyResult.textContent = '✓ Integritate confirmată — hash-ul recalculat corespunde exact cu cel salvat. Documentul și semnătura nu au fost modificate.';
+      } else {
+        verifyResult.className = 'verify-result show bad';
+        verifyResult.textContent = '✗ ATENȚIE — hash-ul recalculat NU corespunde cu cel salvat. Documentul, semnătura sau metadatele ar putea fi fost modificate ulterior semnării.';
+      }
+    } catch (err) {
+      verifyResult.className = 'verify-result show bad';
+      verifyResult.textContent = 'Eroare la verificare: ' + err.message;
+    } finally {
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = 'Verifică integritatea';
+    }
+  });
+
+  function extFromFile(file) {
+    var name = file.name || '';
+    var dot = name.lastIndexOf('.');
+    if (dot >= 0) return name.slice(dot + 1).toLowerCase();
+    return file.type === 'application/pdf' ? 'pdf' : 'bin';
+  }
+
+  submitDocBtn.addEventListener('click', async function () {
+    uploadError.classList.remove('show');
+    linkResult.classList.remove('show');
+
+    var title = docTitle.value.trim();
+    var route = docRoute.value.trim();
+    var date = docDate.value;
+    var file = docFile.files[0];
+
+    if (!title || !route || !date || !file) {
+      uploadError.textContent = 'Completați toate câmpurile și alegeți un fișier.';
+      uploadError.classList.add('show');
+      return;
+    }
+
+    var fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
+
+    submitDocBtn.disabled = true;
+    submitDocBtn.textContent = 'Se încarcă…';
+
+    try {
+      var fileBuffer = await file.arrayBuffer();
+      var fileHash = await sha256HexFromBuffer(fileBuffer);
+      var documentId = 'DOC-' + Date.now();
+      var filePath = documentId + '.' + extFromFile(file);
+
+      var uploadResult = await sb.storage.from('documents').upload(filePath, file, { contentType: file.type });
+      if (uploadResult.error) throw uploadResult.error;
+
+      var insertResult = await sb.from('documents').insert({
+        document_id: documentId,
+        title: title,
+        route: route,
+        doc_date: date,
+        file_path: filePath,
+        file_type: fileType,
+        file_hash: fileHash
+      }).select().single();
+      if (insertResult.error) throw insertResult.error;
+
+      var link = location.origin + '/driver/?id=' + insertResult.data.id;
+      linkValue.textContent = link;
+      renderQr('linkQr', link);
+      linkResult.classList.add('show');
+
+      docTitle.value = '';
+      docRoute.value = '';
+      docDate.value = '';
+      docFile.value = '';
+
+      loadDocs();
+    } catch (err) {
+      uploadError.textContent = 'Eroare la încărcare: ' + (err.message || JSON.stringify(err));
+      uploadError.classList.add('show');
+    } finally {
+      submitDocBtn.disabled = false;
+      submitDocBtn.textContent = 'Încarcă și generează link';
+    }
+  });
+
+  copyLinkBtn.addEventListener('click', function () {
+    navigator.clipboard.writeText(linkValue.textContent);
+    copyLinkBtn.textContent = 'Copiat!';
+    setTimeout(function () { copyLinkBtn.textContent = 'Copiază linkul'; }, 1500);
+  });
+
+  chainBtn.addEventListener('click', async function () {
+    chainBtn.disabled = true;
+    chainBtn.textContent = 'Se verifică…';
+    chainResult.className = 'chain-result';
+    chainResult.textContent = '';
+
+    try {
+      var result = await sb
+        .from('signed_documents')
+        .select('seq, hash, prev_chain_hash, chain_hash')
+        .order('seq', { ascending: true });
+      if (result.error) throw result.error;
+
+      var rows = result.data;
+      if (rows.length === 0) {
+        chainResult.className = 'chain-result show ok';
+        chainResult.textContent = 'Nu există încă nicio înregistrare în lanț.';
+        return;
+      }
+
+      var lastChainHash = null;
+      var broken = null;
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        if (r.prev_chain_hash !== lastChainHash) {
+          broken = r.seq;
+          break;
+        }
+        var expected = await sha256Hex((r.prev_chain_hash || 'GENESIS') + '|' + r.hash);
+        if (expected !== r.chain_hash) {
+          broken = r.seq;
+          break;
+        }
+        lastChainHash = r.chain_hash;
+      }
+
+      if (broken === null) {
+        chainResult.className = 'chain-result show ok';
+        chainResult.textContent = '✓ Toate cele ' + rows.length + ' înregistrări formează un lanț neîntrerupt.';
+      } else {
+        chainResult.className = 'chain-result show bad';
+        chainResult.textContent = '✗ ATENȚIE — lanțul este rupt la poziția #' + broken + '. O înregistrare ar putea fi fost modificată sau ștearsă.';
+      }
+    } catch (err) {
+      chainResult.className = 'chain-result show bad';
+      chainResult.textContent = 'Eroare la verificarea lanțului: ' + (err.message || JSON.stringify(err));
+    } finally {
+      chainBtn.disabled = false;
+      chainBtn.textContent = 'Verifică lanțul complet';
+    }
+  });
+
+  checkSession();
+})();
+</script>
+
+</body>
+</html>

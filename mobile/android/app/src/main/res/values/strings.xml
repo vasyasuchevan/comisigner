@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ComiSigner</string>
+    <string name="title_activity_main">ComiSigner</string>
+    <string name="package_name">com.comisigner.driver</string>
+    <string name="custom_url_scheme">com.comisigner.driver</string>
+</resources>

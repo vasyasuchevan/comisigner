@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificare semnătură — ComiSigner</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    padding: 16px;
+    color: #1a1a1a;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 480px;
+    margin: 0 auto 16px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; text-align: center; }
+  .subtitle { font-size: 13px; color: #666; text-align: center; margin-bottom: 18px; }
+  .state-msg {
+    text-align: center;
+    color: #666;
+    padding: 20px 8px;
+    font-size: 14.5px;
+  }
+  .state-msg.error { color: #c0342c; }
+  .badge {
+    display: block;
+    text-align: center;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .badge.ok { background: #e6f4ea; color: #1e7e34; }
+  .badge.bad { background: #fdecea; color: #c0342c; }
+  .field { margin-bottom: 10px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 2px;
+  }
+  .field .value {
+    font-size: 13.5px;
+    word-break: break-word;
+  }
+  .field .value.mono {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    word-break: break-all;
+    background: #f5f5f5;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #eaeaea;
+  }
+  .hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+  .home-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Verificare semnătură</h1>
+  <div class="subtitle">Confirmare independentă a integrității unui document semnat</div>
+  <div id="content">
+    <div class="state-msg" id="stateMsg">Se verifică…</div>
+  </div>
+  <a class="home-link" href="/">← Pagina principală</a>
+</div>
+
+<script src="vendor/supabase.js"></script>
+<script>
+  var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+</script>
+<script>
+(function () {
+  var content = document.getElementById('content');
+
+  function bufferToHex(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+    return hex;
+  }
+
+  async function sha256Hex(text) {
+    var enc = new TextEncoder();
+    var digest = await crypto.subtle.digest('SHA-256', enc.encode(text));
+    return bufferToHex(digest);
+  }
+
+  function showMessage(msg, isError) {
+    content.innerHTML = '<div class="state-msg' + (isError ? ' error' : '') + '">' + msg + '</div>';
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  async function run() {
+    var id = new URLSearchParams(location.search).get('id');
+    if (!id) {
+      showMessage('Acest link nu conține un cod de verificare valid.', true);
+      return;
+    }
+
+    try {
+      var result = await sb.rpc('verify_signed_document', { p_id: id });
+      if (result.error) {
+        showMessage('Eroare la verificare: ' + result.error.message, true);
+        return;
+      }
+      var rows = result.data;
+      if (!rows || rows.length === 0) {
+        showMessage('Nu a fost găsită nicio înregistrare cu acest cod.', true);
+        return;
+      }
+      var r = rows[0];
+
+      var expected = await sha256Hex((r.prev_chain_hash || 'GENESIS') + '|' + r.hash);
+      var chainOk = expected === r.chain_hash;
+
+      var html = '';
+      html += '<div class="badge ' + (chainOk ? 'ok' : 'bad') + '">' +
+        (chainOk ? '✓ Integritate confirmată — poziția #' + r.seq + ' din lanțul de audit' : '✗ ATENȚIE — această înregistrare nu se potrivește cu lanțul de audit') +
+        '</div>';
+
+      html += '<div class="field"><label>Șofer</label><div class="value">' + escapeHtml(r.driver_name) + '</div></div>';
+      if (r.doc_title) {
+        html += '<div class="field"><label>Document</label><div class="value">' + escapeHtml(r.doc_title) + (r.doc_route ? ' — ' + escapeHtml(r.doc_route) : '') + (r.doc_date ? ' (' + escapeHtml(r.doc_date) + ')' : '') + '</div></div>';
+      }
+      html += '<div class="field"><label>Data/ora semnării</label><div class="value">' + escapeHtml(r.signed_at) + '</div></div>';
+      html += '<div class="field"><label>Hash SHA-256</label><div class="value mono">' + escapeHtml(r.hash) + '</div></div>';
+      html += '<div class="hint">Această pagină recalculează independent poziția înregistrării în lanțul de audit (fiecare semnătură nouă înglobează hash-ul celei precedente) — fără a necesita autentificare. Dacă cineva ar modifica ulterior o înregistrare din arhivă, verificarea ar eșua vizibil aici.</div>';
+
+      content.innerHTML = html;
+    } catch (err) {
+      showMessage('Eroare neașteptată: ' + (err.message || JSON.stringify(err)), true);
+    }
+  }
+
+  run();
+})();
+</script>
+
+</body>
+</html>

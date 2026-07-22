@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semnare document — Șofer</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root {
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    padding: 16px;
+    color: #1a1a1a;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 480px;
+    margin: 0 auto 16px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: #555; font-weight: 500; }
+  .doc-meta {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .doc-meta b { color: #333; }
+  .state-msg {
+    text-align: center;
+    color: #666;
+    padding: 20px 8px;
+    font-size: 14.5px;
+  }
+  .state-msg.error { color: #c0342c; }
+  .state-msg.info { color: #1e7e34; }
+  #stateBackBtn {
+    display: none;
+    background: #eee;
+    color: #333;
+    margin: 4px auto 0;
+    max-width: 200px;
+  }
+  .welcome-view { text-align: center; }
+  .welcome-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    margin-bottom: 12px;
+  }
+  .welcome-title { font-size: 19px; margin: 0 0 8px; }
+  .welcome-text {
+    font-size: 13.5px;
+    color: #666;
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .welcome-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+  }
+  .welcome-field input {
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  #openLinkBtn {
+    background: #2563eb;
+    color: #fff;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .welcome-error {
+    color: #c0342c;
+    background: #fdecea;
+    border: 1px solid #f3c1bd;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    margin-top: 10px;
+    display: none;
+    text-align: left;
+  }
+  .welcome-error.show { display: block; }
+  .home-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    margin-top: 16px;
+  }
+  .file-viewer {
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .file-viewer embed {
+    width: 100%;
+    height: 340px;
+    display: block;
+  }
+  .file-viewer img {
+    width: 100%;
+    display: block;
+  }
+  .file-open-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    margin-bottom: 10px;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    width: 100%;
+    height: 200px;
+    touch-action: none;
+    background: #fff;
+    display: block;
+  }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  button {
+    flex: 1;
+    padding: 12px;
+    font-size: 15px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  #clearBtn {
+    background: #eee;
+    color: #333;
+  }
+  #signBtn {
+    background: #2563eb;
+    color: #fff;
+  }
+  #signBtn:disabled {
+    background: #93b4f5;
+    cursor: not-allowed;
+  }
+  .error {
+    color: #c0342c;
+    background: #fdecea;
+    border: 1px solid #f3c1bd;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    margin-top: 12px;
+    display: none;
+  }
+  .result {
+    display: none;
+    margin-top: 12px;
+  }
+  .result.show { display: block; }
+  .result-badge {
+    display: inline-block;
+    background: #e6f4ea;
+    color: #1e7e34;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 2px;
+  }
+  .field .value {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px;
+    word-break: break-all;
+    background: #f5f5f5;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #eaeaea;
+  }
+  .sig-preview {
+    max-width: 200px;
+    border: 1px solid #eaeaea;
+    border-radius: 6px;
+    margin-top: 4px;
+    background: #fff;
+  }
+  .hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 10px;
+  }
+  .name-field {
+    margin-bottom: 14px;
+  }
+  .name-field label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 4px;
+  }
+  .name-field input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="stateCard">
+  <div class="welcome-view" id="welcomeView">
+    <img class="welcome-logo" src="icons/icon-192.png" alt="ComiSigner">
+    <h1 class="welcome-title">ComiSigner — Șofer</h1>
+    <div class="welcome-text">Veți primi un link către fiecare document de semnat direct de la birou. Lipiți linkul (sau doar codul documentului) mai jos pentru a continua.</div>
+    <div class="welcome-field">
+      <input type="text" id="linkInput" placeholder="Lipiți linkul sau codul documentului">
+      <button id="openLinkBtn" type="button">Deschide documentul</button>
+    </div>
+    <div class="welcome-error" id="welcomeError"></div>
+    <a class="home-link" href="https://comisigner.vercel.app/">← Pagina principală</a>
+  </div>
+  <div class="state-msg" id="stateMsg" style="display:none;">Se încarcă documentul…</div>
+  <button id="stateBackBtn" type="button">Înapoi la pagina principală</button>
+</div>
+
+<div class="card" id="docCard" style="display:none;">
+  <h1>Document de semnat</h1>
+  <h2 id="docTitle"></h2>
+  <div class="doc-meta">
+    <div><b>ID document:</b> <span id="docId"></span></div>
+    <div><b>Traseu:</b> <span id="docRoute"></span></div>
+    <div><b>Data cursei:</b> <span id="docDate"></span></div>
+  </div>
+  <div class="file-viewer" id="fileViewer"></div>
+  <a class="file-open-link" id="fileOpenLink" href="#" target="_blank" rel="noopener">Deschide documentul într-o filă nouă</a>
+</div>
+
+<div class="card" id="signCard" style="display:none;">
+  <div class="name-field">
+    <label for="driverName">Nume șofer</label>
+    <input type="text" id="driverName" placeholder="Introduceți numele și prenumele">
+  </div>
+
+  <h2 style="margin-bottom:8px;">Semnătură</h2>
+  <canvas id="sigCanvas"></canvas>
+  <div class="btn-row">
+    <button id="clearBtn" type="button">Șterge</button>
+    <button id="signBtn" type="button" disabled>Semnează</button>
+  </div>
+  <div class="error" id="errorBox"></div>
+
+  <div class="result" id="resultBox">
+    <span class="result-badge">✓ Semnat și salvat în baza de date</span>
+    <div class="field">
+      <label>Șofer</label>
+      <div class="value" id="outDriverName"></div>
+    </div>
+    <div class="field">
+      <label>Hash SHA-256 (document + semnătură + oră + dispozitiv)</label>
+      <div class="value" id="outHash"></div>
+    </div>
+    <div class="field">
+      <label>Cod de verificare publică (pentru arhivă/client, fără login)</label>
+      <div class="value"><a id="outVerifyLink" href="#" target="_blank" rel="noopener"></a></div>
+    </div>
+    <div class="field">
+      <label>Marcă temporală (ISO 8601)</label>
+      <div class="value" id="outTimestamp"></div>
+    </div>
+    <div class="field">
+      <label>ID dispozitiv (prototip, UUID din localStorage)</label>
+      <div class="value" id="outDevice"></div>
+    </div>
+    <div class="field">
+      <label>Imaginea semnăturii</label>
+      <br>
+      <img class="sig-preview" id="outSigImg" alt="semnătură">
+    </div>
+    <div class="hint" style="margin-top:14px;">Documentul este semnat. Puteți închide această filă.</div>
+  </div>
+
+  <div class="hint">La apăsarea „Semnează”, documentul este descărcat și hashuit din nou (nu se are încredere într-o valoare salvată), pentru a detecta orice modificare a fișierului între încărcare și semnare.</div>
+</div>
+
+<script src="vendor/signature_pad.umd.min.js"></script>
+<script src="vendor/supabase.js"></script>
+<script>
+  var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+</script>
+<script>
+(function () {
+  var stateCard = document.getElementById('stateCard');
+  var welcomeView = document.getElementById('welcomeView');
+  var stateMsg = document.getElementById('stateMsg');
+  var docCard = document.getElementById('docCard');
+  var signCard = document.getElementById('signCard');
+  var stateBackBtn = document.getElementById('stateBackBtn');
+
+  var canvas = document.getElementById('sigCanvas');
+  var clearBtn = document.getElementById('clearBtn');
+  var signBtn = document.getElementById('signBtn');
+  var errorBox = document.getElementById('errorBox');
+  var resultBox = document.getElementById('resultBox');
+
+  var currentDoc = null;
+  var signaturePad = null;
+
+  function showWelcome() {
+    stateCard.style.display = 'block';
+    welcomeView.style.display = 'block';
+    stateMsg.style.display = 'none';
+    stateBackBtn.style.display = 'none';
+    docCard.style.display = 'none';
+    signCard.style.display = 'none';
+  }
+
+  function showState(msg, variant) {
+    stateCard.style.display = 'block';
+    welcomeView.style.display = 'none';
+    stateMsg.style.display = 'block';
+    stateMsg.className = 'state-msg' + (variant ? ' ' + variant : '');
+    stateMsg.textContent = msg;
+    stateBackBtn.style.display = variant ? 'block' : 'none';
+    docCard.style.display = 'none';
+    signCard.style.display = 'none';
+  }
+
+  stateBackBtn.addEventListener('click', function () {
+    location.href = location.pathname;
+  });
+
+  function resizeCanvas() {
+    if (!signaturePad) return;
+    var ratio = Math.max(window.devicePixelRatio || 1, 1);
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    canvas.getContext('2d').scale(ratio, ratio);
+    signaturePad.clear();
+  }
+
+  function updateSignButton() {
+    if (!signaturePad) return;
+    signBtn.disabled = signaturePad.isEmpty();
+  }
+
+  function setupSignaturePad() {
+    signaturePad = new SignaturePad(canvas, {
+      backgroundColor: 'rgb(255,255,255)',
+      penColor: 'rgb(20,20,20)'
+    });
+    window.addEventListener('resize', resizeCanvas);
+    signaturePad.addEventListener('beginStroke', updateSignButton);
+    signaturePad.addEventListener('endStroke', updateSignButton);
+    resizeCanvas();
+  }
+
+  clearBtn.addEventListener('click', function () {
+    if (!signaturePad) return;
+    signaturePad.clear();
+    hideError();
+    hideResult();
+    updateSignButton();
+  });
+
+  var UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+  function tryOpenLink() {
+    var welcomeError = document.getElementById('welcomeError');
+    welcomeError.classList.remove('show');
+    var input = document.getElementById('linkInput').value.trim();
+    var match = input.match(UUID_RE);
+    if (!match) {
+      welcomeError.textContent = 'Nu am găsit un ID valid — verificați linkul primit de la birou.';
+      welcomeError.classList.add('show');
+      return;
+    }
+    location.search = '?id=' + match[0];
+  }
+
+  document.getElementById('openLinkBtn').addEventListener('click', tryOpenLink);
+  document.getElementById('linkInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') tryOpenLink();
+  });
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+  function hideError() {
+    errorBox.style.display = 'none';
+  }
+  function hideResult() {
+    resultBox.classList.remove('show');
+  }
+
+  function getOrCreateDeviceId() {
+    var key = 'comisigner_device_id';
+    var id = localStorage.getItem(key);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : 'dev-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+      localStorage.setItem(key, id);
+    }
+    return id;
+  }
+
+  function bufferToHex(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) {
+      hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+  }
+
+  async function sha256Hex(text) {
+    var enc = new TextEncoder();
+    var data = enc.encode(text);
+    var digest = await crypto.subtle.digest('SHA-256', data);
+    return bufferToHex(digest);
+  }
+
+  async function sha256HexFromBuffer(buffer) {
+    var digest = await crypto.subtle.digest('SHA-256', buffer);
+    return bufferToHex(digest);
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    var parts = dataUrl.split(',');
+    var mime = parts[0].match(/:(.*?);/)[1];
+    var binary = atob(parts[1]);
+    var array = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return new Blob([array], { type: mime });
+  }
+
+  function getDocPublicUrl(path) {
+    return sb.storage.from('documents').getPublicUrl(path).data.publicUrl;
+  }
+
+  async function loadDoc() {
+    var id;
+    try {
+      id = new URLSearchParams(location.search).get('id');
+    } catch (e) {
+      id = null;
+    }
+
+    if (!id) {
+      showWelcome();
+      return;
+    }
+
+    showState('Se încarcă documentul…', null);
+
+    try {
+      var result = await sb.rpc('get_document_by_id', { p_id: id });
+      if (result.error) {
+        showState('Eroare la încărcarea documentului: ' + result.error.message, 'error');
+        return;
+      }
+      var rows = result.data;
+      if (!rows || rows.length === 0) {
+        showState('Documentul nu a fost găsit.', 'error');
+        return;
+      }
+      var doc = rows[0];
+      if (doc.status === 'signed') {
+        showState('✓ Acest document a fost deja semnat. Contactați biroul dacă aveți nevoie de un link nou.', 'info');
+        return;
+      }
+
+      currentDoc = doc;
+      stateCard.style.display = 'none';
+      docCard.style.display = 'block';
+      signCard.style.display = 'block';
+
+      document.getElementById('docTitle').textContent = doc.title;
+      document.getElementById('docId').textContent = doc.document_id;
+      document.getElementById('docRoute').textContent = doc.route;
+      document.getElementById('docDate').textContent = doc.doc_date;
+
+      var url = getDocPublicUrl(doc.file_path);
+      var viewer = document.getElementById('fileViewer');
+      if (doc.file_type === 'pdf') {
+        viewer.innerHTML = '<embed src="' + url + '" type="application/pdf">';
+      } else {
+        viewer.innerHTML = '<img src="' + url + '" alt="document">';
+      }
+      document.getElementById('fileOpenLink').href = url;
+
+      setupSignaturePad();
+    } catch (err) {
+      showState('Eroare neașteptată la încărcarea documentului: ' + (err.message || JSON.stringify(err)), 'error');
+    }
+  }
+
+  signBtn.addEventListener('click', async function () {
+    hideError();
+    hideResult();
+
+    if (!currentDoc) return;
+
+    var driverName = document.getElementById('driverName').value.trim();
+    if (!driverName) {
+      showError('Introduceți numele șoferului înainte de a semna.');
+      return;
+    }
+    if (signaturePad.isEmpty()) {
+      showError('Semnătura este goală — desenați o semnătură înainte de a semna.');
+      return;
+    }
+
+    signBtn.disabled = true;
+    signBtn.textContent = 'Se descarcă documentul…';
+
+    try {
+      var docUrl = getDocPublicUrl(currentDoc.file_path);
+      var docResp = await fetch(docUrl);
+      if (!docResp.ok) throw new Error('nu s-a putut descărca documentul pentru hashuire');
+      var docBuf = await docResp.arrayBuffer();
+      var fileHash = await sha256HexFromBuffer(docBuf);
+
+      var sigDataUrl = signaturePad.toDataURL('image/png');
+      var timestamp = new Date().toISOString();
+      var deviceId = getOrCreateDeviceId();
+
+      var combined = fileHash + '|' + sigDataUrl + '|' + timestamp + '|' + deviceId;
+      var hash = await sha256Hex(combined);
+
+      signBtn.textContent = 'Se salvează în baza de date…';
+
+      var fileName = currentDoc.document_id + '_' + Date.now() + '.png';
+      var uploadResult = await sb.storage.from('signatures').upload(fileName, dataUrlToBlob(sigDataUrl), { contentType: 'image/png' });
+      if (uploadResult.error) throw uploadResult.error;
+
+      var newId = crypto.randomUUID();
+      var insertResult = await sb.from('signed_documents').insert({
+        id: newId,
+        document_id: currentDoc.document_id,
+        document_content: currentDoc.title + ' — ' + currentDoc.route + ' (' + currentDoc.doc_date + ')',
+        driver_name: driverName,
+        device_id: deviceId,
+        signature_path: fileName,
+        hash: hash,
+        signed_at: timestamp,
+        document_ref: currentDoc.id,
+        file_hash: fileHash
+      });
+      if (insertResult.error) throw insertResult.error;
+
+      document.getElementById('outDriverName').textContent = driverName;
+      document.getElementById('outHash').textContent = hash;
+      document.getElementById('outTimestamp').textContent = timestamp;
+      document.getElementById('outDevice').textContent = deviceId;
+      document.getElementById('outSigImg').src = sigDataUrl;
+
+      var verifyLink = location.origin + '/verify/?id=' + newId;
+      var verifyLinkEl = document.getElementById('outVerifyLink');
+      verifyLinkEl.href = verifyLink;
+      verifyLinkEl.textContent = verifyLink;
+
+      resultBox.classList.add('show');
+    } catch (err) {
+      showError('Eroare la salvare: ' + (err.message || JSON.stringify(err)));
+    } finally {
+      signBtn.disabled = signaturePad.isEmpty();
+      signBtn.textContent = 'Semnează';
+    }
+  });
+
+  loadDoc();
+})();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function (err) {
+        console.warn('Service worker registration failed:', err);
+      });
+    });
+  }
+</script>
+
+</body>
+</html>

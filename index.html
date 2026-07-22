@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComiSigner</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    padding: 16px;
+    color: #1a1a1a;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap {
+    max-width: 420px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 24px;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+  a.card {
+    display: block;
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    text-decoration: none;
+    color: #1a1a1a;
+    margin-bottom: 14px;
+    border: 1px solid transparent;
+    transition: border-color 0.15s;
+  }
+  a.card:hover { border-color: #2563eb; }
+  a.card .role {
+    font-size: 17px;
+    font-weight: 700;
+    color: #2563eb;
+    margin-bottom: 4px;
+  }
+  a.card .desc {
+    font-size: 13.5px;
+    color: #666;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>ComiSigner</h1>
+  <div class="subtitle">Semnare electronică a documentelor pentru șoferi</div>
+
+  <a class="card" href="driver/">
+    <div class="role">Sunt șofer</div>
+    <div class="desc">Deschid linkul unui document primit de la birou și îl semnez.</div>
+  </a>
+
+  <a class="card" href="office/">
+    <div class="role">Sunt din birou</div>
+    <div class="desc">Încarc documente, urmăresc statusul și verific semnăturile.</div>
+  </a>
+</div>
+
+</body>
+</html>
