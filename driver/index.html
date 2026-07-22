@@ -591,7 +591,7 @@
       document.getElementById('outDevice').textContent = deviceId;
       document.getElementById('outSigImg').src = sigDataUrl;
 
-      var verifyLink = location.origin + '/verify/?id=' + newId;
+      var verifyLink = 'https://comisigner.vercel.app/verify/?id=' + newId;
       var verifyLinkEl = document.getElementById('outVerifyLink');
       verifyLinkEl.href = verifyLink;
       verifyLinkEl.textContent = verifyLink;
