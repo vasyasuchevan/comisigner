@@ -17,10 +17,17 @@ Sistem demonstrativ (temă de interviu) pentru semnarea electronică a documente
 - **Aplicație mobilă:** [Capacitor](https://capacitorjs.com) — `/driver/` împachetat ca APK Android nativ, testat pe dispozitive reale.
 - **Biblioteci:** [signature_pad](https://github.com/szimek/signature_pad) (semnătură desenată), `@supabase/supabase-js` (client), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (coduri QR pentru linkurile de document) — toate încărcate local (`vendor/`), niciuna prin CDN.
 
+### Roluri și dosarul șoferului
+
+Personalul biroului are un rol — **Admin** (acces complet) sau **HR** (adaugă șoferi, adaugă documente, trimite linkuri) — atribuit manual printr-un rând în tabelul `profiles` (nu există o pagină de "creează cont" în aplicație, ca să nu fie nevoie de o cheie service_role; conturile Auth se creează din Supabase Dashboard). Fiecare **șofer** are un dosar de documente (acte necesare angajării sau reînnoirii — permis, certificat medical etc.), nu documente de transport. Biroul poate genera două tipuri de linkuri pentru un șofer, ambele **valabile 24h**:
+
+- link către **un singur document** din dosar;
+- link către **tot dosarul** — șoferul vede toate documentele unul după altul și le semnează pe toate **cu o singură semnătură** (fiecare document primește totuși propria înregistrare în jurnalul de audit, vezi mai jos).
+
 ### Flux principal
 
-1. **Biroul** (`/office/`, după autentificare) încarcă un document (PDF sau imagine), completează traseul și data. Fișierul e stocat în Supabase Storage, iar biroul primește un **link unic** (`driver/?id=<uuid>`) + un **cod QR** generat automat, pe care le trimite șoferului.
-2. **Șoferul** deschide linkul (sau scanează codul QR, sau introduce doar codul documentului manual), vede documentul direct în pagină, introduce numele și desenează semnătura pe `<canvas>`.
+1. **Biroul** (`/office/`, după autentificare) adaugă un șofer, apoi încarcă un document (PDF sau imagine) în dosarul lui, cu titlu, tip de document și dată. Fișierul e stocat în Supabase Storage, iar biroul primește un **link unic** (`driver/?id=<uuid>`, valabil 24h) + un **cod QR** generat automat, pe care le trimite șoferului — sau generează un link pentru tot dosarul (`driver/?dossier=<uuid>`).
+2. **Șoferul** deschide linkul (sau scanează codul QR, sau introduce doar codul documentului manual), vede documentul (sau toate documentele din dosar) direct în pagină, bifează o declarație că a citit documentul/documentele, și desenează semnătura pe `<canvas>`.
 3. La apăsarea „Semnează": documentul e **descărcat din nou** și hashuit pe loc (nu se are încredere într-o valoare salvată anterior), imaginea semnăturii e încărcată în Storage, iar hash-ul SHA-256 e calculat din:
 
    `hash = SHA256(hash_document + semnătură_dataURL + marcă_temporală_ISO8601 + ID_dispozitiv)`
@@ -44,11 +51,16 @@ Verificarea e disponibilă în două locuri independente:
 
 ### Schema Supabase (pe scurt)
 
-- `documents` — documentele încărcate de birou (`title`, `route`, `doc_date`, `file_path`, `file_type`, `status`: pending/signed). Fără acces direct pentru anonim — doar prin RPC `get_document_by_id`.
-- `signed_documents` — evenimentele de semnare (`driver_name`, `device_id`, `signature_path`, `hash`, `signed_at`, `document_ref`, `seq`, `prev_chain_hash`, `chain_hash`). **Fără politici RLS de `update`/`delete`** pentru niciun rol client — tabelă append-only, ca un registru de audit.
-- RPC `get_document_by_id(uuid)` — singurul mod în care un șofer neautentificat poate citi un document, exact pe cel al cărui link/cod îl are.
+- `profiles` — leagă un login din Supabase Auth de un rol (`admin` sau `hr`). Un rând aici e ceea ce transformă un login în membru autorizat al echipei; se adaugă manual din Table Editor.
+- `drivers` — șoferii (`full_name`, `phone`). Citire/scriere doar pentru cineva cu rând în `profiles`.
+- `documents` — documentele din dosarul unui șofer (`driver_id`, `title`, `doc_type`, `doc_date`, `file_path`, `file_type`, `status`: pending/signed, `expires_at`). Fără acces direct pentru anonim — doar prin RPC-urile de mai jos.
+- `dossier_links` — token-ul (folosit direct ca id în URL) pentru linkul "tot dosarul", cu `driver_id` și `expires_at` (24h de la generare).
+- `signed_documents` — evenimentele de semnare (`driver_name`, `device_id`, `signature_path`, `hash`, `signed_at`, `document_ref`, `seq`, `prev_chain_hash`, `chain_hash`). **Fără politici RLS de `update`/`delete`** pentru niciun rol client — tabelă append-only, ca un registru de audit. La semnarea unui întreg dosar, se inserează câte un rând per document (aceeași imagine de semnătură, aceeași marcă temporală), nu un singur rând agregat — fiecare document își păstrează propria verigă în lanțul de audit.
+- RPC `get_document_by_id(uuid)` — singurul mod în care un șofer neautentificat poate citi un document, exact pe cel al cărui link/cod îl are; întoarce și numele șoferului și dacă linkul a expirat.
+- RPC `get_dossier_by_link(uuid)` — la fel, pentru linkul "tot dosarul": numele șoferului, starea de expirare, și lista completă a documentelor lui.
 - RPC `verify_signed_document(uuid)` — folosit de pagina publică `/verify/`, fără autentificare, întoarce o singură înregistrare + metadatele documentului.
 - Storage: bucket `documents` (public pe cale exactă, nelistabil), bucket `signatures` (privat, acces doar autentificat prin URL semnat temporar, 1 oră).
+- Migrațiile SQL sunt în `supabase/migrations/` (rulate manual în Supabase Dashboard → SQL Editor — proiectul nu folosește Supabase CLI).
 
 ## ⚖️ Notă juridică importantă — nivelul de semnătură electronică
 
@@ -60,7 +72,7 @@ Conform eIDAS (Regulamentul UE 910/2014), există trei niveluri de semnătură e
 
 **Limitări cunoscute** (transparență, nu ascundem):
 - **ID dispozitiv** e un UUID generat local (browser/aplicație), nu un fingerprint hardware securizat.
-- **Nicio verificare de identitate** a șoferului la semnare (nume introdus liber).
+- **Nicio verificare de identitate reală** a șoferului la semnare — numele afișat la semnare vine acum din dosarul creat de birou (nu mai e introdus liber de șofer, cu excepția linkurilor vechi, dinainte de introducerea dosarelor), dar asta confirmă doar că cineva cu acces la link a semnat ca acel șofer, nu identitatea lui reală (nu e o verificare de tip ID/video, cum cere QES).
 - **Bucket-ul `documents` e public** pe cale exactă (nelistabil) — prag de confidențialitate mai jos decât arhiva de semnături (care necesită login).
 - **APK-ul Android e o build de tip debug**, nesemnată pentru Google Play — pentru publicare ar fi nevoie de o cheie de semnare release.
 - **Un cod QR scanat deschide mereu versiunea web** (în browser), nu direct aplicația nativă instalată — pentru asta ar fi nevoie de Android App Links (verificare de domeniu), neconfigurat încă. Funcțional identic — codul e același în ambele.

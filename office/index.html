@@ -277,6 +277,61 @@
   .chain-result.show { display: block; }
   .chain-result.ok { background: #e6f4ea; color: #1e7e34; }
   .chain-result.bad { background: #fdecea; color: #c0342c; }
+  .role-badge {
+    display: none;
+    background: #eef2ff;
+    color: #3730a3;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .role-badge.show { display: inline-block; }
+  .no-role-banner {
+    display: none;
+    background: #fdecea;
+    color: #c0342c;
+    border: 1px solid #f3c1bd;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13.5px;
+    margin-bottom: 16px;
+  }
+  .no-role-banner.show { display: block; }
+  .upload-field select {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
+  }
+  #addDriverBtn { background: #2563eb; color: #fff; }
+  .driver-row {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .driver-row:last-child { border-bottom: none; }
+  .driver-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .driver-row-name { font-weight: 600; font-size: 14px; }
+  .driver-row-phone { font-size: 12.5px; color: #777; }
+  .dossier-link-btn { background: #eee; color: #333; padding: 7px 12px; font-size: 13px; }
+  .dossier-link-result {
+    display: none;
+    margin-top: 10px;
+    background: #e6f4ea;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .dossier-link-result.show { display: block; }
 </style>
 </head>
 <body>
@@ -302,10 +357,11 @@
 <div class="wrap" id="appWrap" style="display:none;">
   <div class="top-bar">
     <div>
-      <h1>Documente semnate</h1>
+      <h1>Documente semnate <span class="role-badge" id="roleBadge"></span></h1>
       <div class="subtitle" id="countLabel">Se încarcă…</div>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="addDriverBtn" type="button">+ Adaugă șofer</button>
       <button id="addDocBtn" type="button">+ Adaugă document</button>
       <button id="chainBtn" type="button">Verifică lanțul complet</button>
       <button id="refreshBtn" type="button">Reîmprospătează</button>
@@ -313,17 +369,40 @@
     </div>
   </div>
 
+  <div class="no-role-banner" id="noRoleBanner">Contul dvs. este autentificat, dar nu are un rol atribuit (admin/hr) — cereți administratorului să vă adauge un rând în tabelul <code>profiles</code>. Până atunci, adăugarea de șoferi/documente/linkuri nu va funcționa.</div>
+
   <div class="chain-result" id="chainResult"></div>
+
+  <div class="card upload-card" id="driversCard">
+    <h2 style="margin:0 0 12px;">Șoferi</h2>
+    <div class="upload-field">
+      <label for="newDriverName">Nume și prenume</label>
+      <input type="text" id="newDriverName" placeholder="ex: Ion Popescu">
+    </div>
+    <div class="upload-field">
+      <label for="newDriverPhone">Telefon (opțional)</label>
+      <input type="text" id="newDriverPhone" placeholder="ex: +373 6xx xxx xx">
+    </div>
+    <button id="submitDriverBtn" type="button">Adaugă șofer</button>
+    <div class="upload-error" id="driverError"></div>
+    <div id="driversList" style="margin-top:16px;"></div>
+  </div>
 
   <div class="card upload-card" id="uploadCard">
     <h2 style="margin:0 0 12px;">Adaugă document nou</h2>
     <div class="upload-field">
-      <label for="docTitle">Titlu</label>
-      <input type="text" id="docTitle" placeholder="ex: Aviz de expediție">
+      <label for="docDriver">Șofer</label>
+      <select id="docDriver">
+        <option value="">— selectați șoferul —</option>
+      </select>
     </div>
     <div class="upload-field">
-      <label for="docRoute">Traseu</label>
-      <input type="text" id="docRoute" placeholder="ex: Chișinău → Iași">
+      <label for="docTitle">Titlu</label>
+      <input type="text" id="docTitle" placeholder="ex: Certificat medical">
+    </div>
+    <div class="upload-field">
+      <label for="docType">Tip document</label>
+      <input type="text" id="docType" placeholder="ex: Permis de conducere">
     </div>
     <div class="upload-field">
       <label for="docDate">Data</label>
@@ -336,7 +415,7 @@
     <button id="submitDocBtn" type="button">Încarcă și generează link</button>
     <div class="upload-error" id="uploadError"></div>
     <div class="link-result" id="linkResult">
-      <div>✓ Document încărcat. Trimiteți acest link șoferului:</div>
+      <div>✓ Document încărcat. Trimiteți acest link șoferului (expiră în 24h):</div>
       <div class="value" id="linkValue"></div>
       <div class="qr-wrap" id="linkQr"></div>
       <button id="copyLinkBtn" type="button">Copiază linkul</button>
@@ -350,7 +429,7 @@
         <thead>
           <tr>
             <th>Document</th>
-            <th>Traseu</th>
+            <th>Tip document</th>
             <th>Data</th>
             <th>Șofer</th>
             <th>Status</th>
@@ -406,7 +485,7 @@
     <div id="pendingDetail" class="link-panel">
       <div><b id="pTitle"></b></div>
       <div id="pMeta" style="color:#666; font-size:13.5px; margin-top:4px;"></div>
-      <div>Link pentru șofer:</div>
+      <div>Link pentru șofer (expiră în 24h):</div>
       <div class="value" id="pLink"></div>
       <div class="qr-wrap" id="pQr"></div>
       <button id="copyPendingLinkBtn" type="button">Copiază linkul</button>
@@ -443,10 +522,22 @@
   var loginBtn = document.getElementById('loginBtn');
   var loginError = document.getElementById('loginError');
 
+  var roleBadge = document.getElementById('roleBadge');
+  var noRoleBanner = document.getElementById('noRoleBanner');
+
+  var addDriverBtn = document.getElementById('addDriverBtn');
+  var driversCard = document.getElementById('driversCard');
+  var newDriverName = document.getElementById('newDriverName');
+  var newDriverPhone = document.getElementById('newDriverPhone');
+  var submitDriverBtn = document.getElementById('submitDriverBtn');
+  var driverError = document.getElementById('driverError');
+  var driversList = document.getElementById('driversList');
+  var docDriver = document.getElementById('docDriver');
+
   var addDocBtn = document.getElementById('addDocBtn');
   var uploadCard = document.getElementById('uploadCard');
   var docTitle = document.getElementById('docTitle');
-  var docRoute = document.getElementById('docRoute');
+  var docType = document.getElementById('docType');
   var docDate = document.getElementById('docDate');
   var docFile = document.getElementById('docFile');
   var submitDocBtn = document.getElementById('submitDocBtn');
@@ -459,9 +550,14 @@
   var pendingDetail = document.getElementById('pendingDetail');
 
   var currentRow = null;
+  var driversCache = [];
 
   addDocBtn.addEventListener('click', function () {
     uploadCard.classList.toggle('show');
+  });
+
+  addDriverBtn.addEventListener('click', function () {
+    driversCard.classList.toggle('show');
   });
 
   function showLogin() {
@@ -472,8 +568,124 @@
   function showApp() {
     loginWrap.style.display = 'none';
     appWrap.style.display = 'block';
+    loadProfile();
+    loadDrivers();
     loadDocs();
   }
+
+  async function loadProfile() {
+    roleBadge.className = 'role-badge';
+    roleBadge.textContent = '';
+    noRoleBanner.classList.remove('show');
+
+    var userResult = await sb.auth.getUser();
+    if (userResult.error || !userResult.data.user) return;
+
+    var profileResult = await sb
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', userResult.data.user.id)
+      .maybeSingle();
+
+    if (profileResult.error || !profileResult.data) {
+      noRoleBanner.classList.add('show');
+      return;
+    }
+
+    var label = profileResult.data.role === 'admin' ? 'Admin' : 'HR';
+    if (profileResult.data.full_name) label += ' · ' + profileResult.data.full_name;
+    roleBadge.textContent = label;
+    roleBadge.classList.add('show');
+  }
+
+  async function loadDrivers() {
+    var result = await sb.from('drivers').select('*').order('full_name', { ascending: true });
+    if (result.error) {
+      driversList.innerHTML = '<div class="state-msg error">Eroare la încărcarea șoferilor: ' + escapeHtml(result.error.message) + '</div>';
+      docDriver.innerHTML = '<option value="">— selectați șoferul —</option>';
+      return;
+    }
+
+    driversCache = result.data;
+
+    docDriver.innerHTML = '<option value="">— selectați șoferul —</option>' +
+      driversCache.map(function (dr) {
+        return '<option value="' + dr.id + '">' + escapeHtml(dr.full_name) + '</option>';
+      }).join('');
+
+    if (driversCache.length === 0) {
+      driversList.innerHTML = '<div class="state-msg">Niciun șofer adăugat încă.</div>';
+      return;
+    }
+
+    driversList.innerHTML = driversCache.map(function (dr) {
+      return '' +
+        '<div class="driver-row" data-driver-id="' + dr.id + '">' +
+          '<div class="driver-row-head">' +
+            '<div>' +
+              '<div class="driver-row-name">' + escapeHtml(dr.full_name) + '</div>' +
+              (dr.phone ? '<div class="driver-row-phone">' + escapeHtml(dr.phone) + '</div>' : '') +
+            '</div>' +
+            '<button type="button" class="dossier-link-btn" data-driver-id="' + dr.id + '">Link pentru tot dosarul</button>' +
+          '</div>' +
+          '<div class="dossier-link-result" id="dossierLinkResult_' + dr.id + '">' +
+            '<div>✓ Link generat (expiră în 24h). Trimiteți-l șoferului:</div>' +
+            '<div class="value" id="dossierLinkValue_' + dr.id + '"></div>' +
+            '<div class="qr-wrap" id="dossierLinkQr_' + dr.id + '"></div>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+
+    driversList.querySelectorAll('.dossier-link-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { generateDossierLink(btn.getAttribute('data-driver-id'), btn); });
+    });
+  }
+
+  async function generateDossierLink(driverId, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Se generează…';
+    try {
+      var insertResult = await sb.from('dossier_links').insert({ driver_id: driverId }).select().single();
+      if (insertResult.error) throw insertResult.error;
+
+      var link = location.origin + '/driver/?dossier=' + insertResult.data.id;
+      document.getElementById('dossierLinkValue_' + driverId).textContent = link;
+      renderQr('dossierLinkQr_' + driverId, link);
+      document.getElementById('dossierLinkResult_' + driverId).classList.add('show');
+    } catch (err) {
+      driverError.textContent = 'Eroare la generarea linkului: ' + (err.message || JSON.stringify(err));
+      driverError.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Link pentru tot dosarul';
+    }
+  }
+
+  submitDriverBtn.addEventListener('click', async function () {
+    driverError.classList.remove('show');
+    var fullName = newDriverName.value.trim();
+    var phone = newDriverPhone.value.trim();
+    if (!fullName) {
+      driverError.textContent = 'Introduceți numele șoferului.';
+      driverError.classList.add('show');
+      return;
+    }
+    submitDriverBtn.disabled = true;
+    submitDriverBtn.textContent = 'Se adaugă…';
+    try {
+      var insertResult = await sb.from('drivers').insert({ full_name: fullName, phone: phone || null });
+      if (insertResult.error) throw insertResult.error;
+      newDriverName.value = '';
+      newDriverPhone.value = '';
+      loadDrivers();
+    } catch (err) {
+      driverError.textContent = 'Eroare la adăugare: ' + (err.message || JSON.stringify(err));
+      driverError.classList.add('show');
+    } finally {
+      submitDriverBtn.disabled = false;
+      submitDriverBtn.textContent = 'Adaugă șofer';
+    }
+  });
 
   async function checkSession() {
     var sessionResult = await sb.auth.getSession();
@@ -530,7 +742,7 @@
 
     var signedResult = await sb
       .from('signed_documents')
-      .select('*, documents(*)')
+      .select('*, documents(*, drivers(full_name))')
       .order('signed_at', { ascending: false });
 
     if (signedResult.error) {
@@ -542,7 +754,7 @@
 
     var pendingResult = await sb
       .from('documents')
-      .select('*')
+      .select('*, drivers(full_name)')
       .eq('status', 'pending')
       .order('doc_date', { ascending: false });
 
@@ -580,11 +792,11 @@
         var r = item.data;
         var doc = r.documents;
         var title = doc ? doc.title : r.document_id;
-        var route = doc ? doc.route : '—';
+        var type = doc ? doc.doc_type : '—';
         var dateStr = doc ? doc.doc_date : fmtDate(r.signed_at);
         tr.innerHTML =
           '<td>' + escapeHtml(title) + '</td>' +
-          '<td>' + escapeHtml(route) + '</td>' +
+          '<td>' + escapeHtml(type) + '</td>' +
           '<td>' + escapeHtml(dateStr) + '</td>' +
           '<td>' + escapeHtml(r.driver_name) + '</td>' +
           '<td><span class="badge">✓ Semnat</span></td>';
@@ -593,9 +805,9 @@
         var d = item.data;
         tr.innerHTML =
           '<td>' + escapeHtml(d.title) + '</td>' +
-          '<td>' + escapeHtml(d.route) + '</td>' +
+          '<td>' + escapeHtml(d.doc_type) + '</td>' +
           '<td>' + escapeHtml(d.doc_date) + '</td>' +
-          '<td>—</td>' +
+          '<td>' + escapeHtml(d.drivers ? d.drivers.full_name : '—') + '</td>' +
           '<td><span class="badge pending">În așteptare</span></td>';
         tr.addEventListener('click', function () { openPendingModal(d); });
       }
@@ -661,7 +873,7 @@
     pendingDetail.style.display = 'block';
 
     document.getElementById('pTitle').textContent = doc.title;
-    document.getElementById('pMeta').textContent = doc.route + ' · ' + doc.doc_date;
+    document.getElementById('pMeta').textContent = (doc.drivers ? doc.drivers.full_name + ' · ' : '') + doc.doc_type + ' · ' + doc.doc_date;
     var link = location.origin + '/driver/?id=' + doc.id;
     document.getElementById('pLink').textContent = link;
     renderQr('pQr', link);
@@ -770,13 +982,14 @@
     uploadError.classList.remove('show');
     linkResult.classList.remove('show');
 
+    var driverId = docDriver.value;
     var title = docTitle.value.trim();
-    var route = docRoute.value.trim();
+    var type = docType.value.trim();
     var date = docDate.value;
     var file = docFile.files[0];
 
-    if (!title || !route || !date || !file) {
-      uploadError.textContent = 'Completați toate câmpurile și alegeți un fișier.';
+    if (!driverId || !title || !type || !date || !file) {
+      uploadError.textContent = 'Selectați șoferul, completați toate câmpurile și alegeți un fișier.';
       uploadError.classList.add('show');
       return;
     }
@@ -795,14 +1008,18 @@
       var uploadResult = await sb.storage.from('documents').upload(filePath, file, { contentType: file.type });
       if (uploadResult.error) throw uploadResult.error;
 
+      var expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
       var insertResult = await sb.from('documents').insert({
         document_id: documentId,
+        driver_id: driverId,
         title: title,
-        route: route,
+        doc_type: type,
         doc_date: date,
         file_path: filePath,
         file_type: fileType,
-        file_hash: fileHash
+        file_hash: fileHash,
+        expires_at: expiresAt
       }).select().single();
       if (insertResult.error) throw insertResult.error;
 
@@ -811,8 +1028,9 @@
       renderQr('linkQr', link);
       linkResult.classList.add('show');
 
+      docDriver.value = '';
       docTitle.value = '';
-      docRoute.value = '';
+      docType.value = '';
       docDate.value = '';
       docFile.value = '';
 
