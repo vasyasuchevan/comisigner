@@ -761,7 +761,11 @@
   }
 
   var OCR_MAX_PAGES_TO_SCAN = 3;
-  var OCR_TIME_BUDGET_MS = 14000; // 4 languages in one pass take longer than the 2 this was tuned for
+  // Measured 0.5-2.6s/page on a fast desktop; real phones (2-3x slower) plus 4 languages
+  // could push past a tight budget. Generous on purpose: this runs in the background and
+  // never blocks signing, so a longer wait here just means a better chance of finding the
+  // spot, not a worse experience.
+  var OCR_TIME_BUDGET_MS = 20000;
 
   async function findSignatureSpot(pages) {
     var scanOrder = pages.slice(-OCR_MAX_PAGES_TO_SCAN).reverse(); // last pages first — signature lines are almost always near the end
