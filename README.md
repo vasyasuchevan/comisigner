@@ -82,7 +82,7 @@ Conform eIDAS (Regulamentul UE 910/2014), există trei niveluri de semnătură e
 - **ID dispozitiv** e un UUID generat local (browser/aplicație), nu un fingerprint hardware securizat.
 - **Nicio verificare de identitate reală** a șoferului la semnare — numele afișat la semnare vine acum din dosarul creat de birou (nu mai e introdus liber de șofer, cu excepția linkurilor vechi, dinainte de introducerea dosarelor), dar asta confirmă doar că cineva cu acces la link a semnat ca acel șofer, nu identitatea lui reală (nu e o verificare de tip ID/video, cum cere QES).
 - **Bucket-ul `documents` e public** pe cale exactă (nelistabil) — prag de confidențialitate mai jos decât arhiva de semnături (care necesită login).
-- **APK-ul Android e o build de tip debug**, nesemnată pentru Google Play — pentru publicare ar fi nevoie de o cheie de semnare release.
+- ~~**APK-ul Android e o build de tip debug**, nesemnată pentru Google Play~~ — rezolvat: există acum o build `assembleRelease` semnată cu un keystore de producție dedicat (vezi secțiunea „Build semnată" de mai sus).
 - **Un cod QR scanat deschide mereu versiunea web** (în browser), nu direct aplicația nativă instalată — pentru asta ar fi nevoie de Android App Links (verificare de domeniu), neconfigurat încă. Funcțional identic — codul e același în ambele.
 - **Plasarea automată a semnăturii e o euristică, nu o garanție** — OCR-ul local poate rata linia de semnătură (scan de calitate slabă, format neobișnuit, altă limbă decât cele acoperite — momentan română, engleză, rusă, ucraineană prin OCR dedicat, plus polonă/germană/italiană-spaniolă-portugheză prin cuvinte-cheie citite de modelele existente), caz în care aplicația revine automat la afișarea simplă a documentului, fără să blocheze semnarea. Bibliotecile OCR + PDF adaugă ~16 MB la `driver/` (deci și la APK).
 
@@ -107,7 +107,20 @@ cd android
 gradlew.bat assembleDebug
 ```
 
-Rezultat: `mobile/android/app/build/outputs/apk/debug/app-debug.apk` — instalabil direct pe Android (sursă necunoscută). **Testat cu succes pe două dispozitive Android reale**, inclusiv fluxul complet: primire link, semnare, verificare. `/driver/` rămâne și el instalabil ca PWA direct din Chrome ("Adaugă pe ecranul principal"), funcțional identic.
+Rezultat: `mobile/android/app/build/outputs/apk/debug/app-debug.apk` — build de test, **nesemnată**, instalabilă direct pe Android (sursă necunoscută). **Testat cu succes pe două dispozitive Android reale**, inclusiv fluxul complet: primire link, semnare, verificare. `/driver/` rămâne și el instalabil ca PWA direct din Chrome ("Adaugă pe ecranul principal"), funcțional identic.
+
+### Build semnată (release)
+
+Există un keystore de producție (`comisigner`, valabil 10.000 zile) — **nu e în repo** (secret, exclus prin `.gitignore`), stocat local la `C:\Users\Anisoara\OneDrive\Desktop\ComiSigner-release-key.jks`, cu parola în `mobile/android/keystore.properties` (tot exclus din git). `app/build.gradle` citește automat acest fișier și semnează orice `assembleRelease`; dacă fișierul lipsește, Gradle produce o build **nesemnată** și afișează un avertisment în log, fără să eșueze silențios.
+
+```
+cd mobile
+npx cap sync android
+cd android
+gradlew.bat assembleRelease
+```
+
+Rezultat: `mobile/android/app/build/outputs/apk/release/app-release.apk`, semnată cu certificatul `CN=Comilga, OU=ComiSigner, O=Comilga, L=Bucuresti, ST=Bucuresti, C=RO` (verificabil cu `apksigner verify --print-certs`). **Keystore-ul nu trebuie regenerat niciodată** — orice actualizare viitoare a aplicației, inclusiv o eventuală publicare pe Google Play, trebuie semnată cu același keystore; pierderea lui rupe iremediabil lanțul de actualizări pentru oricine a instalat deja o build semnată cu el.
 
 ## Dezvoltare locală / testare / deploy
 

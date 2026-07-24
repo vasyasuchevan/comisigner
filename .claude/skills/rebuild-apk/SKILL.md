@@ -1,11 +1,11 @@
 ---
 name: rebuild-apk
-description: Rebuild the ComiSigner Android debug APK from the current driver/ code and copy it to the Desktop. Use this whenever driver/index.html (or anything else under driver/) has changed and the user needs an updated APK to test or share — e.g. "rebuild the apk", "make a new apk", "package the app again", "sync and build android", "send me a fresh build". Handles the exact env vars and build order this project's Capacitor setup needs, so they don't have to be re-derived each time.
+description: Rebuild the ComiSigner Android APK (debug or signed release) from the current driver/ code and copy it to the Desktop. Use this whenever driver/index.html (or anything else under driver/) has changed and the user needs an updated APK to test or share — e.g. "rebuild the apk", "make a new apk", "package the app again", "sync and build android", "send me a fresh build", "build a release apk". Handles the exact env vars and build order this project's Capacitor setup needs, so they don't have to be re-derived each time.
 ---
 
 # Rebuild ComiSigner Android APK
 
-Wraps the multi-step Capacitor Android build sequence for this repo so the env var paths and build order don't need to be re-derived every time.
+Wraps the multi-step Capacitor Android build sequence for this repo so the env var paths and build order don't need to be re-derived every time. Two build types exist now — debug (default, for quick testing) and signed release (for anything closer to real distribution). Ask which one the user wants if it's not obvious from context; default to debug for routine "test this change" requests.
 
 ## Why the order matters
 
@@ -38,9 +38,33 @@ cp "/c/Users/Anisoara/OneDrive/Desktop/ComiSigner/mobile/android/app/build/outpu
 
 Report plainly whether the build succeeded, and confirm the file is on the Desktop.
 
-## Important limitation — always say this out loud
+## Important limitation — always say this out loud (debug build only)
 
-This produces an **unsigned debug build only**, not something installable from Google Play. Fixing that (a release keystore + signed build) is a separate, not-yet-built process — one of two things the user's job-interview follow-up explicitly needs. Don't describe a debug rebuild as "release-ready" or imply it satisfies that requirement.
+A debug build (`assembleDebug`) is **unsigned**, not something installable from Google Play or usable as a real update to a previously-installed release build. For anything beyond quick local testing, use the release build below instead.
+
+## Release build (signed)
+
+As of 2026-07-24 a real release keystore exists — see [[reference-comisigner-infra]] for its exact path. `mobile/android/app/build.gradle` reads signing credentials from `mobile/android/keystore.properties` (git-ignored, contains the store/key passwords in plaintext — never print its contents or commit it). If that file is missing on this machine, `assembleRelease` silently falls back to producing an **unsigned** release APK (Gradle logs a warning) — check for that file first rather than assuming signing will happen.
+
+```bash
+cd mobile
+export PATH="/c/Program Files/nodejs:$PATH"
+export JAVA_HOME="/c/Program Files/Eclipse Adoptium/jdk-21.0.11.10-hotspot"
+export ANDROID_HOME="/c/Android/Sdk"
+export ANDROID_SDK_ROOT="/c/Android/Sdk"
+npx cap sync android
+cd android
+./gradlew.bat assembleRelease --no-daemon
+cp app/build/outputs/apk/release/app-release.apk "/c/Users/Anisoara/OneDrive/Desktop/ComiSigner-release.apk"
+```
+
+To confirm an APK is actually signed with the real key (not accidentally unsigned), verify with apksigner from the newest installed build-tools version:
+
+```bash
+/c/Android/Sdk/build-tools/<version>/apksigner.bat verify --print-certs app/build/outputs/apk/release/app-release.apk
+```
+
+Expect `CN=Comilga, OU=ComiSigner, O=Comilga, L=Bucuresti, ST=Bucuresti, C=RO` in the output. **Never regenerate the keystore** — losing it means every future release breaks the upgrade path for anyone who already installed a build signed with it. If `keystore.properties` or the `.jks` file is ever missing, stop and ask the user before creating a new one.
 
 ## If the build fails
 
