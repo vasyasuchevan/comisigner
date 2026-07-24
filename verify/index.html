@@ -154,7 +154,7 @@
 
       html += '<div class="field"><label>Șofer</label><div class="value">' + escapeHtml(r.driver_name) + '</div></div>';
       if (r.doc_title) {
-        html += '<div class="field"><label>Document</label><div class="value">' + escapeHtml(r.doc_title) + (r.doc_route ? ' — ' + escapeHtml(r.doc_route) : '') + (r.doc_date ? ' (' + escapeHtml(r.doc_date) + ')' : '') + '</div></div>';
+        html += '<div class="field"><label>Document</label><div class="value">' + escapeHtml(r.doc_title) + (r.doc_type ? ' — ' + escapeHtml(r.doc_type) : '') + (r.doc_date ? ' (' + escapeHtml(r.doc_date) + ')' : '') + '</div></div>';
       }
       html += '<div class="field"><label>Data/ora semnării</label><div class="value">' + escapeHtml(r.signed_at) + '</div></div>';
       html += '<div class="field"><label>Hash SHA-256</label><div class="value mono">' + escapeHtml(r.hash) + '</div></div>';
