@@ -130,6 +130,35 @@
     color: #666;
     background: #fafafa;
   }
+  .file-viewer-pages {
+    background: #f7f7f7;
+  }
+  .pdf-page {
+    position: relative;
+  }
+  .pdf-page + .pdf-page {
+    border-top: 6px solid #f7f7f7;
+  }
+  .pdf-page canvas {
+    width: 100%;
+    display: block;
+  }
+  .sig-hint-marker {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(37,99,235,0.92);
+    color: #fff;
+    font-size: 12px;
+    padding: 5px 10px;
+    transform: translateY(-50%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    cursor: pointer;
+    z-index: 2;
+  }
   .file-open-link {
     display: block;
     text-align: center;
@@ -414,6 +443,7 @@
 
 <script src="vendor/signature_pad.umd.min.js"></script>
 <script src="vendor/supabase.js"></script>
+<script src="vendor/tesseract/tesseract.min.js"></script>
 <script>
   var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
@@ -447,6 +477,16 @@
   var currentDossier = null;
   var signaturePad = null;
   var documentSigned = false;
+
+  // The AI signature-placement feature may relocate signCard into the middle of a
+  // rendered PDF. This anchor marks where it lives by default, so it can always be moved
+  // back before the next document is rendered (otherwise a later viewerEl.innerHTML = ''
+  // could wipe it out along with the old page canvases).
+  var signCardHomeAnchor = document.createComment('signCardHome');
+  signCard.parentNode.insertBefore(signCardHomeAnchor, signCard);
+  function restoreSignCardPosition() {
+    signCardHomeAnchor.parentNode.insertBefore(signCard, signCardHomeAnchor.nextSibling);
+  }
 
   function goHome(e) {
     e.preventDefault();
@@ -615,6 +655,156 @@
     signAsInput.style.display = 'none';
   }
 
+  // --- AI-assisted signature placement (Tesseract.js OCR over pdf.js-rendered pages) ---
+  // Renders the PDF as canvases (instead of the native <embed> viewer, which Android's
+  // WebView generally can't display anyway), then searches the recognized text for a
+  // signature-line keyword in a few languages. If found, drops a pointer at that spot and
+  // moves the sign card right after it; if anything fails or nothing is found within the
+  // time budget, it silently falls back to the plain embed + default sign-card placement.
+
+  var pdfjsLibPromise = null;
+  function loadPdfjs() {
+    if (!pdfjsLibPromise) {
+      pdfjsLibPromise = import('./vendor/pdfjs/pdf.min.mjs').then(function (lib) {
+        lib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.mjs';
+        return lib;
+      });
+    }
+    return pdfjsLibPromise;
+  }
+
+  var ocrWorkerPromise = null;
+  function getOcrWorker() {
+    if (!ocrWorkerPromise) {
+      ocrWorkerPromise = Tesseract.createWorker('ron+eng', 1, {
+        workerPath: 'vendor/tesseract/worker.min.js',
+        corePath: 'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+        langPath: 'vendor/tesseract/lang-data'
+      });
+    }
+    return ocrWorkerPromise;
+  }
+
+  var SIGNATURE_KEYWORD_STEMS = ['semnatur', 'subsemnat', 'subscris', 'signatur', 'подпис'];
+
+  function stripDiacritics(s) {
+    return String(s || '')
+      .toLowerCase()
+      .replace(/[ăâ]/g, 'a')
+      .replace(/[î]/g, 'i')
+      .replace(/[ș]/g, 's')
+      .replace(/[ț]/g, 't');
+  }
+
+  function isSignatureKeyword(text) {
+    var norm = stripDiacritics(text);
+    for (var i = 0; i < SIGNATURE_KEYWORD_STEMS.length; i++) {
+      if (norm.indexOf(SIGNATURE_KEYWORD_STEMS[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function flattenWords(page) {
+    var words = [];
+    var blocks = page.blocks || [];
+    for (var b = 0; b < blocks.length; b++) {
+      var paragraphs = blocks[b].paragraphs || [];
+      for (var p = 0; p < paragraphs.length; p++) {
+        var lines = paragraphs[p].lines || [];
+        for (var l = 0; l < lines.length; l++) {
+          var lineWords = lines[l].words || [];
+          for (var w = 0; w < lineWords.length; w++) words.push(lineWords[w]);
+        }
+      }
+    }
+    return words;
+  }
+
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('ocr-timeout')); }, ms); })
+    ]);
+  }
+
+  var OCR_MAX_PAGES_TO_SCAN = 3;
+  var OCR_TIME_BUDGET_MS = 8000;
+
+  async function findSignatureSpot(pages) {
+    var scanOrder = pages.slice(-OCR_MAX_PAGES_TO_SCAN).reverse(); // last pages first — signature lines are almost always near the end
+    var worker = await getOcrWorker();
+    for (var i = 0; i < scanOrder.length; i++) {
+      var page = scanOrder[i];
+      var result = await worker.recognize(page.canvas, {}, { blocks: true });
+      var words = flattenWords(result.data);
+      for (var w = 0; w < words.length; w++) {
+        if (words[w].confidence > 40 && isSignatureKeyword(words[w].text)) {
+          return { pageEl: page.el, bbox: words[w].bbox, canvasHeight: page.canvas.height };
+        }
+      }
+    }
+    return null;
+  }
+
+  async function renderPdfPages(url, container) {
+    var pdfjsLib = await loadPdfjs();
+    var pdf = await pdfjsLib.getDocument({ url: url }).promise;
+    var pages = [];
+    var targetCssWidth = container.clientWidth || 320;
+    var dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2); // capped — OCR/render cost grows with pixel count
+    for (var i = 1; i <= pdf.numPages; i++) {
+      var page = await pdf.getPage(i);
+      var baseViewport = page.getViewport({ scale: 1 });
+      var scale = (targetCssWidth * dpr) / baseViewport.width;
+      var viewport = page.getViewport({ scale: scale });
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+      var pageEl = document.createElement('div');
+      pageEl.className = 'pdf-page';
+      pageEl.appendChild(canvas);
+      container.appendChild(pageEl);
+      pages.push({ canvas: canvas, el: pageEl, pageNum: i });
+    }
+    return pages;
+  }
+
+  function placeSignatureHint(spot) {
+    var ratio = spot.bbox.y0 / spot.canvasHeight;
+    var marker = document.createElement('a');
+    marker.href = '#signCard';
+    marker.className = 'sig-hint-marker';
+    marker.style.top = (ratio * 100) + '%';
+    marker.textContent = '✍️ Semnătură detectată aici (AI) — atinge pentru a semna';
+    marker.addEventListener('click', function (e) {
+      e.preventDefault();
+      signCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    spot.pageEl.appendChild(marker);
+    spot.pageEl.insertAdjacentElement('afterend', signCard);
+  }
+
+  // Tries the AI-assisted canvas+OCR pipeline for a PDF; on any failure, falls back to the
+  // plain <embed> viewer with the sign card left in its default place below everything.
+  async function renderSingleDocPdf(url, viewerEl) {
+    viewerEl.innerHTML = '';
+    var pagesWrap = document.createElement('div');
+    pagesWrap.className = 'file-viewer-pages';
+    viewerEl.appendChild(pagesWrap);
+    try {
+      var pages = await renderPdfPages(url, pagesWrap);
+      try {
+        var spot = await withTimeout(findSignatureSpot(pages), OCR_TIME_BUDGET_MS);
+        if (spot) placeSignatureHint(spot);
+      } catch (ocrErr) {
+        // OCR failed or timed out — the document is still visible, just without the hint.
+      }
+    } catch (renderErr) {
+      viewerEl.innerHTML = fileViewerHtml('pdf', url);
+    }
+  }
+
   async function loadDoc() {
     var params;
     try {
@@ -664,6 +854,7 @@
       mode = 'single';
       currentDoc = doc;
       resetSignControls();
+      restoreSignCardPosition();
       stateCard.style.display = 'none';
       docCard.style.display = 'block';
       dossierCard.style.display = 'none';
@@ -676,8 +867,13 @@
       document.getElementById('docDate').textContent = doc.doc_date;
 
       var url = getDocPublicUrl(doc.file_path);
-      document.getElementById('fileViewer').innerHTML = fileViewerHtml(doc.file_type, url);
+      var fileViewerEl = document.getElementById('fileViewer');
       document.getElementById('fileOpenLink').href = url;
+      if (doc.file_type === 'pdf') {
+        renderSingleDocPdf(url, fileViewerEl); // async, runs in the background — doesn't block signing
+      } else {
+        fileViewerEl.innerHTML = fileViewerHtml(doc.file_type, url);
+      }
 
       document.getElementById('sigHeading').textContent = 'Semnătură';
       document.getElementById('consentLabel').textContent = 'Am citit documentul de mai sus și sunt de acord să îl semnez.';
@@ -721,6 +917,7 @@
       mode = 'dossier';
       currentDossier = { linkId: linkId, driverName: row.driver_full_name, documents: docs };
       resetSignControls();
+      restoreSignCardPosition();
       stateCard.style.display = 'none';
       docCard.style.display = 'none';
       dossierCard.style.display = 'block';

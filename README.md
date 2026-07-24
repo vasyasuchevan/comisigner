@@ -15,7 +15,7 @@ Sistem demonstrativ (temă de interviu) pentru semnarea electronică a documente
 - **Backend/bază de date/storage:** [Supabase](https://supabase.com) (Postgres + Auth + Storage), plan gratuit.
 - **Hosting:** [Vercel](https://vercel.com), plan gratuit, deploy static, cu deploy automat din GitHub.
 - **Aplicație mobilă:** [Capacitor](https://capacitorjs.com) — `/driver/` împachetat ca APK Android nativ, testat pe dispozitive reale.
-- **Biblioteci:** [signature_pad](https://github.com/szimek/signature_pad) (semnătură desenată), `@supabase/supabase-js` (client), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (coduri QR pentru linkurile de document) — toate încărcate local (`vendor/`), niciuna prin CDN.
+- **Biblioteci:** [signature_pad](https://github.com/szimek/signature_pad) (semnătură desenată), `@supabase/supabase-js` (client), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (coduri QR pentru linkurile de document), [pdf.js](https://mozilla.github.io/pdf.js/) (randare PDF pe `<canvas>`) și [Tesseract.js](https://github.com/naptha/tesseract.js) (OCR, pentru plasarea automată a semnăturii — vezi mai jos) — toate încărcate local (`vendor/`), niciuna prin CDN.
 
 ### Roluri și dosarul șoferului
 
@@ -34,6 +34,10 @@ Personalul biroului are un rol — **Admin** (acces complet) sau **HR** (adaugă
 
    În plus, această înregistrare e **înlănțuită criptografic** de cea anterioară (vezi secțiunea următoare). Documentul e marcat automat ca „semnat" printr-un trigger Postgres, fără a acorda drept de UPDATE clientului anonim. După semnare, șoferul primește instant un **link de verificare publică**.
 4. **Biroul** vede lista completă (documente în așteptare + semnate), poate deschide orice document semnat, apăsa **„Verifică integritatea"** (recalculează hash-ul de la zero) sau **„Verifică lanțul complet"** (validează tot jurnalul de audit dintr-o dată).
+
+### Plasare automată a semnăturii (OCR local, independent de limbă)
+
+Pentru linkul către **un singur document** (nu și pentru dosar întreg, unde o singură semnătură acoperă toate documentele oricum), aplicația încearcă să găsească automat rândul de semnătură din PDF: documentul e randat pagină cu pagină pe `<canvas>` (via pdf.js, în loc de vizualizatorul nativ `<embed>`, care oricum nu funcționează de regulă în WebView-ul Android folosit de APK), apoi rulează OCR local (Tesseract.js, `ron+eng`, fără server, fără CDN) căutând un cuvânt-cheie ("semnătură", "subsemnatul", "signature", "подпись" etc.) — pornind de la **ultima pagină** înapoi (acolo e aproape mereu linia de semnătură), limitat la 3 pagini și la un buget de 8 secunde. Dacă găsește ceva, afișează un indicator chiar în document și mută cardul de semnat lângă el; dacă nu găsește nimic, timpul expiră, sau OCR-ul eșuează din orice motiv, aplicația revine tăcut la comportamentul dinainte (documentul cu `<embed>`, cardul de semnat la finalul paginii) — niciodată nu blochează semnarea.
 
 ### Lanțul de audit (tamper-evident chain)
 
@@ -76,6 +80,7 @@ Conform eIDAS (Regulamentul UE 910/2014), există trei niveluri de semnătură e
 - **Bucket-ul `documents` e public** pe cale exactă (nelistabil) — prag de confidențialitate mai jos decât arhiva de semnături (care necesită login).
 - **APK-ul Android e o build de tip debug**, nesemnată pentru Google Play — pentru publicare ar fi nevoie de o cheie de semnare release.
 - **Un cod QR scanat deschide mereu versiunea web** (în browser), nu direct aplicația nativă instalată — pentru asta ar fi nevoie de Android App Links (verificare de domeniu), neconfigurat încă. Funcțional identic — codul e același în ambele.
+- **Plasarea automată a semnăturii e o euristică, nu o garanție** — OCR-ul local poate rata linia de semnătură (scan de calitate slabă, format neobișnuit, altă limbă decât cele acoperite), caz în care aplicația revine automat la afișarea simplă a documentului, fără să blocheze semnarea. Bibliotecile OCR + PDF adaugă ~11 MB la `driver/` (deci și la APK).
 
 ## Structura proiectului
 
