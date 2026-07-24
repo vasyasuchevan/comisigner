@@ -444,6 +444,7 @@
 <script src="vendor/signature_pad.umd.min.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="vendor/tesseract/tesseract.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
 <script>
   var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
@@ -477,6 +478,7 @@
   var currentDossier = null;
   var signaturePad = null;
   var documentSigned = false;
+  var lastSingleDocSpot = null; // OCR-found signature location for the current single doc, if any
 
   // The AI signature-placement feature may relocate signCard into the middle of a
   // rendered PDF. This anchor marks where it lives by default, so it can always be moved
@@ -739,7 +741,7 @@
       var words = flattenWords(result.data);
       for (var w = 0; w < words.length; w++) {
         if (words[w].confidence > 40 && isSignatureKeyword(words[w].text)) {
-          return { pageEl: page.el, bbox: words[w].bbox, canvasHeight: page.canvas.height };
+          return { pageEl: page.el, bbox: words[w].bbox, canvasHeight: page.canvas.height, pageNum: page.pageNum, scale: page.scale };
         }
       }
     }
@@ -765,7 +767,7 @@
       pageEl.className = 'pdf-page';
       pageEl.appendChild(canvas);
       container.appendChild(pageEl);
-      pages.push({ canvas: canvas, el: pageEl, pageNum: i });
+      pages.push({ canvas: canvas, el: pageEl, pageNum: i, scale: scale });
     }
     return pages;
   }
@@ -796,12 +798,106 @@
       var pages = await renderPdfPages(url, pagesWrap);
       try {
         var spot = await withTimeout(findSignatureSpot(pages), OCR_TIME_BUDGET_MS);
-        if (spot) placeSignatureHint(spot);
+        if (spot) {
+          placeSignatureHint(spot);
+          lastSingleDocSpot = spot; // reused at sign time to stamp the drawn signature at the same spot
+        }
       } catch (ocrErr) {
         // OCR failed or timed out — the document is still visible, just without the hint.
       }
     } catch (renderErr) {
       viewerEl.innerHTML = fileViewerHtml('pdf', url);
+    }
+  }
+
+  // --- Stamping: composes the drawn signature visually onto a copy of the document. ---
+  // The audit hash is computed separately, on the original untouched bytes, before any of
+  // this runs — this only produces a nicer-looking copy for people to look at in /office/.
+  // Best-effort: any failure here must never block the actual (legally meaningful) signing.
+
+  var SIGNATURE_STAMP_WIDTH_PT = 130;
+
+  function dataUrlToUint8Array(dataUrl) {
+    var binary = atob(dataUrl.split(',')[1]);
+    var array = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return array;
+  }
+
+  async function stampSignatureOntoPdf(originalBuf, sigDataUrl, spot) {
+    var pdfDoc = await PDFLib.PDFDocument.load(originalBuf);
+    var pngImage = await pdfDoc.embedPng(dataUrlToUint8Array(sigDataUrl));
+    var pages = pdfDoc.getPages();
+    var stampW = SIGNATURE_STAMP_WIDTH_PT;
+    var stampH = stampW * (pngImage.height / pngImage.width);
+    var pageIndex, x, y;
+
+    if (spot && spot.pageNum >= 1 && spot.pageNum <= pages.length) {
+      pageIndex = spot.pageNum - 1;
+      var page = pages[pageIndex];
+      x = Math.min(spot.bbox.x1 / spot.scale + 8, page.getWidth() - stampW - 10);
+      y = Math.max(page.getHeight() - (spot.bbox.y1 / spot.scale) - stampH / 2, 10);
+    } else {
+      pageIndex = pages.length - 1;
+      x = pages[pageIndex].getWidth() - stampW - 40;
+      y = 50;
+    }
+
+    pages[pageIndex].drawImage(pngImage, { x: x, y: y, width: stampW, height: stampH });
+    return new Blob([await pdfDoc.save()], { type: 'application/pdf' });
+  }
+
+  function loadImageEl(url) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('nu s-a putut încărca imaginea')); };
+      img.src = url;
+    });
+  }
+
+  async function stampSignatureOntoImage(docUrl, sigDataUrl) {
+    var origImg = await loadImageEl(docUrl);
+    var canvas = document.createElement('canvas');
+    canvas.width = origImg.naturalWidth;
+    canvas.height = origImg.naturalHeight;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(origImg, 0, 0);
+
+    var sigImg = await loadImageEl(sigDataUrl);
+    var stampW = Math.min(canvas.width * 0.3, 320);
+    var stampH = stampW * (sigImg.height / sigImg.width);
+    ctx.drawImage(sigImg, canvas.width - stampW - 20, canvas.height - stampH - 20, stampW, stampH);
+
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (blob) resolve(blob); else reject(new Error('nu s-a putut genera imaginea ștampilată'));
+      }, 'image/png');
+    });
+  }
+
+  // Returns { blob, ext } or null if this file type isn't stamped (e.g. item 5's "other" fallback).
+  async function createStampedFile(fileType, docUrl, originalBuf, sigDataUrl, spot) {
+    if (fileType === 'pdf') {
+      return { blob: await stampSignatureOntoPdf(originalBuf, sigDataUrl, spot), ext: 'pdf' };
+    }
+    if (fileType === 'image') {
+      return { blob: await stampSignatureOntoImage(docUrl, sigDataUrl), ext: 'png' };
+    }
+    return null;
+  }
+
+  async function uploadStampedFile(documentId, fileType, docUrl, originalBuf, sigDataUrl, spot) {
+    try {
+      var stamped = await createStampedFile(fileType, docUrl, originalBuf, sigDataUrl, spot);
+      if (!stamped) return null;
+      var path = documentId + '_signed_' + Date.now() + '.' + stamped.ext;
+      var uploadResult = await sb.storage.from('signed_files').upload(path, stamped.blob, { contentType: stamped.blob.type });
+      if (uploadResult.error) return null;
+      return path;
+    } catch (stampErr) {
+      return null; // best-effort — signing itself must still succeed
     }
   }
 
@@ -853,6 +949,7 @@
 
       mode = 'single';
       currentDoc = doc;
+      lastSingleDocSpot = null;
       resetSignControls();
       restoreSignCardPosition();
       stateCard.style.display = 'none';
@@ -1015,11 +1112,15 @@
       var combined = fileHash + '|' + sigDataUrl + '|' + timestamp + '|' + deviceId;
       var hash = await sha256Hex(combined);
 
-      signBtn.textContent = 'Se salvează în baza de date…';
+      signBtn.textContent = 'Se încarcă semnătura…';
 
       var fileName = currentDoc.document_id + '_' + Date.now() + '.png';
       var uploadResult = await sb.storage.from('signatures').upload(fileName, dataUrlToBlob(sigDataUrl), { contentType: 'image/png' });
       if (uploadResult.error) throw uploadResult.error;
+
+      signBtn.textContent = 'Se compune documentul semnat…';
+      var stampedFilePath = await uploadStampedFile(currentDoc.document_id, currentDoc.file_type, docUrl, docBuf, sigDataUrl, lastSingleDocSpot);
+      signBtn.textContent = 'Se salvează în baza de date…';
 
       var newId = crypto.randomUUID();
       var insertResult = await sb.from('signed_documents').insert({
@@ -1029,6 +1130,7 @@
         driver_name: driverName,
         device_id: deviceId,
         signature_path: fileName,
+        stamped_file_path: stampedFilePath,
         hash: hash,
         signed_at: timestamp,
         document_ref: currentDoc.id,
@@ -1107,6 +1209,8 @@
         var combined = fileHash + '|' + sigDataUrl + '|' + timestamp + '|' + deviceId;
         var hash = await sha256Hex(combined);
 
+        var stampedFilePath = await uploadStampedFile(doc.document_id, doc.file_type, docUrl, docBuf, sigDataUrl, null);
+
         var newId = crypto.randomUUID();
         var insertResult = await sb.from('signed_documents').insert({
           id: newId,
@@ -1115,6 +1219,7 @@
           driver_name: driverName,
           device_id: deviceId,
           signature_path: fileName,
+          stamped_file_path: stampedFilePath,
           hash: hash,
           signed_at: timestamp,
           document_ref: doc.id,

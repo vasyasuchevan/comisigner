@@ -550,7 +550,7 @@
       <div class="field">
         <label>Semnătura colectată la semnare</label>
         <img class="sig-img" id="mSigImg" alt="semnătură">
-        <div class="hint" style="font-size:12px; color:#888; margin-top:4px;">Semnătura e păstrată separat de document (nu suprapusă peste el), astfel încât hash-ul de mai jos să rămână verificabil pe fișierul original, nemodificat.</div>
+        <div class="hint" style="font-size:12px; color:#888; margin-top:4px;">Documentul de mai sus e o copie cu semnătura compusă vizual peste el, generată la semnare. Hash-ul de mai jos se calculează însă mereu pe fișierul original, nemodificat — nu pe această copie — ca să rămână o dovadă independentă de modul de afișare.</div>
       </div>
       <div class="field">
         <label>ID document</label>
@@ -1001,7 +1001,14 @@
 
     var fileViewerEl = document.getElementById('mFileViewer');
     var fileOpenLink = document.getElementById('mFileOpenLink');
-    if (row.documents && row.documents.file_path) {
+    if (row.stamped_file_path) {
+      // Preferred: the copy with the driver's signature composed onto it.
+      var stampedUrl = sb.storage.from('signed_files').getPublicUrl(row.stamped_file_path).data.publicUrl;
+      fileViewerEl.innerHTML = docFileViewerHtml(row.documents ? row.documents.file_type : 'pdf', stampedUrl);
+      fileOpenLink.href = stampedUrl;
+      fileOpenLink.style.display = 'block';
+    } else if (row.documents && row.documents.file_path) {
+      // Fallback: no stamped copy (older record, or stamping failed) — show the original.
       var docUrl = sb.storage.from('documents').getPublicUrl(row.documents.file_path).data.publicUrl;
       fileViewerEl.innerHTML = docFileViewerHtml(row.documents.file_type, docUrl);
       fileOpenLink.href = docUrl;

@@ -15,7 +15,7 @@ Sistem demonstrativ (temă de interviu) pentru semnarea electronică a documente
 - **Backend/bază de date/storage:** [Supabase](https://supabase.com) (Postgres + Auth + Storage), plan gratuit.
 - **Hosting:** [Vercel](https://vercel.com), plan gratuit, deploy static, cu deploy automat din GitHub.
 - **Aplicație mobilă:** [Capacitor](https://capacitorjs.com) — `/driver/` împachetat ca APK Android nativ, testat pe dispozitive reale.
-- **Biblioteci:** [signature_pad](https://github.com/szimek/signature_pad) (semnătură desenată), `@supabase/supabase-js` (client), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (coduri QR pentru linkurile de document), [pdf.js](https://mozilla.github.io/pdf.js/) (randare PDF pe `<canvas>`) și [Tesseract.js](https://github.com/naptha/tesseract.js) (OCR, pentru plasarea automată a semnăturii — vezi mai jos) — toate încărcate local (`vendor/`), niciuna prin CDN.
+- **Biblioteci:** [signature_pad](https://github.com/szimek/signature_pad) (semnătură desenată), `@supabase/supabase-js` (client), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (coduri QR pentru linkurile de document), [pdf.js](https://mozilla.github.io/pdf.js/) (randare PDF pe `<canvas>`), [Tesseract.js](https://github.com/naptha/tesseract.js) (OCR, pentru plasarea automată a semnăturii — vezi mai jos) și [pdf-lib](https://pdf-lib.js.org/) (compune imaginea semnăturii peste o copie a PDF-ului) — toate încărcate local (`vendor/`), niciuna prin CDN.
 
 ### Roluri și dosarul șoferului
 
@@ -33,7 +33,11 @@ Personalul biroului are un rol — **Admin** (acces complet) sau **HR** (adaugă
    `hash = SHA256(hash_document + semnătură_dataURL + marcă_temporală_ISO8601 + ID_dispozitiv)`
 
    În plus, această înregistrare e **înlănțuită criptografic** de cea anterioară (vezi secțiunea următoare). Documentul e marcat automat ca „semnat" printr-un trigger Postgres, fără a acorda drept de UPDATE clientului anonim. După semnare, șoferul primește instant un **link de verificare publică**.
-4. **Biroul** vede lista completă (documente în așteptare + semnate), poate deschide orice document semnat, apăsa **„Verifică integritatea"** (recalculează hash-ul de la zero) sau **„Verifică lanțul complet"** (validează tot jurnalul de audit dintr-o dată).
+4. **Biroul** vede lista completă (documente în așteptare + semnate), poate deschide orice document semnat — vede documentul cu semnătura compusă vizual peste el (vezi mai jos) —, apăsa **„Verifică integritatea"** (recalculează hash-ul de la zero, pe fișierul original) sau **„Verifică lanțul complet"** (validează tot jurnalul de audit dintr-o dată).
+
+### Copia „ștampilată" (semnătura compusă vizual peste document)
+
+Hash-ul de audit se calculează mereu pe fișierul **original, nemodificat** (altfel n-ar mai detecta o manipulare ulterioară) — dar un hash nu e ceva ce oamenii vor să se uite la el. De-asta, imediat după calcularea hash-ului, clientul generează **o a doua copie**, cu imaginea semnăturii desenate compusă vizual peste document (pdf-lib pentru PDF — pe pagina și în locul unde OCR-ul de mai sus a găsit rândul de semnătură, dacă a găsit; `<canvas>` pentru imagini, colț dreapta-jos), o încarcă separat (bucket `signed_files`), și abia asta se afișează în `/office/`. Dacă generarea copiei eșuează din orice motiv, semnarea tot reușește — copia ștampilată e strict cosmetică, nu participă la hash sau la lanțul de audit.
 
 ### Plasare automată a semnăturii (OCR local, independent de limbă)
 
@@ -59,11 +63,11 @@ Verificarea e disponibilă în două locuri independente:
 - `drivers` — șoferii (`full_name`, `phone`). Citire/scriere doar pentru cineva cu rând în `profiles`.
 - `documents` — documentele din dosarul unui șofer (`driver_id`, `title`, `doc_type`, `doc_date`, `file_path`, `file_type`, `status`: pending/signed, `expires_at`). Fără acces direct pentru anonim — doar prin RPC-urile de mai jos.
 - `dossier_links` — token-ul (folosit direct ca id în URL) pentru linkul "tot dosarul", cu `driver_id` și `expires_at` (24h de la generare).
-- `signed_documents` — evenimentele de semnare (`driver_name`, `device_id`, `signature_path`, `hash`, `signed_at`, `document_ref`, `seq`, `prev_chain_hash`, `chain_hash`). **Fără politici RLS de `update`/`delete`** pentru niciun rol client — tabelă append-only, ca un registru de audit. La semnarea unui întreg dosar, se inserează câte un rând per document (aceeași imagine de semnătură, aceeași marcă temporală), nu un singur rând agregat — fiecare document își păstrează propria verigă în lanțul de audit.
+- `signed_documents` — evenimentele de semnare (`driver_name`, `device_id`, `signature_path`, `stamped_file_path`, `hash`, `signed_at`, `document_ref`, `seq`, `prev_chain_hash`, `chain_hash`). **Fără politici RLS de `update`/`delete`** pentru niciun rol client — tabelă append-only, ca un registru de audit. `stamped_file_path` e strict pentru afișare (vezi „Copia ștampilată" mai sus) — poate fi `NULL` (generare eșuată sau înregistrare mai veche) fără să afecteze validitatea semnării. La semnarea unui întreg dosar, se inserează câte un rând per document (aceeași imagine de semnătură, aceeași marcă temporală), nu un singur rând agregat — fiecare document își păstrează propria verigă în lanțul de audit.
 - RPC `get_document_by_id(uuid)` — singurul mod în care un șofer neautentificat poate citi un document, exact pe cel al cărui link/cod îl are; întoarce și numele șoferului și dacă linkul a expirat.
 - RPC `get_dossier_by_link(uuid)` — la fel, pentru linkul "tot dosarul": numele șoferului, starea de expirare, și lista completă a documentelor lui.
 - RPC `verify_signed_document(uuid)` — folosit de pagina publică `/verify/`, fără autentificare, întoarce o singură înregistrare + metadatele documentului.
-- Storage: bucket `documents` (public pe cale exactă, nelistabil), bucket `signatures` (privat, acces doar autentificat prin URL semnat temporar, 1 oră).
+- Storage: bucket `documents` (public pe cale exactă, nelistabil), bucket `signatures` (privat, acces doar autentificat prin URL semnat temporar, 1 oră), bucket `signed_files` (public pe cale exactă, la fel ca `documents` — copiile ștampilate, scrise de șofer/rol anonim la semnare).
 - Migrațiile SQL sunt în `supabase/migrations/` (rulate manual în Supabase Dashboard → SQL Editor — proiectul nu folosește Supabase CLI).
 
 ## ⚖️ Notă juridică importantă — nivelul de semnătură electronică
