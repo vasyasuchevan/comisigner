@@ -281,15 +281,18 @@
     color: var(--muted);
     margin-bottom: 5px;
   }
-  .upload-field input {
+  .upload-field input,
+  .upload-field select {
     width: 100%;
     padding: 10px 12px;
     font-size: 15px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     font-family: inherit;
+    background: #fff;
   }
-  .upload-field input:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
+  .upload-field input:focus-visible,
+  .upload-field select:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
   #submitDocBtn { background: var(--ink); color: #fff; width: 100%; padding: 12px; border-radius: var(--radius-md); }
   #submitDocBtn:hover:not(:disabled) { background: var(--ink-soft); }
   #submitDocBtn:disabled { background: var(--muted-soft); cursor: not-allowed; }
@@ -485,6 +488,15 @@
   .doc-row-main { flex: 1; min-width: 0; }
   .doc-row-title { font-weight: 700; font-size: 14px; }
   .doc-row-meta { font-size: 12.5px; color: var(--muted); margin-left: 6px; }
+  .doc-row-valid-warn { color: var(--warn); font-weight: 600; }
+  .inline-edit-row { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+  .inline-edit-row input[type="date"] {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+  }
   .doc-row-arrow { color: var(--muted-soft); font-size: 18px; }
   .upload-inline {
     margin-top: 22px;
@@ -831,11 +843,24 @@
           <div class="collapsible-body" id="uploadBody">
             <div class="upload-field">
               <label for="docType">Tip document <span class="hint">(se aplică la toate fișierele selectate mai jos)</span></label>
-              <input type="text" id="docType" placeholder="ex: Permis de conducere">
+              <select id="docType">
+                <option value="Permis de conducere">Permis de conducere</option>
+                <option value="Certificat medical">Certificat medical</option>
+                <option value="Aviz psihologic">Aviz psihologic</option>
+                <option value="Card tahograf">Card tahograf</option>
+                <option value="Atestat profesional (CPC)">Atestat profesional (CPC)</option>
+                <option value="Contract de muncă">Contract de muncă</option>
+                <option value="__custom__">Altul…</option>
+              </select>
+              <input type="text" id="docTypeCustom" placeholder="Introduceți tipul documentului" style="display:none; margin-top:8px;">
             </div>
             <div class="upload-field">
               <label for="docDate">Data <span class="hint">(se aplică la toate fișierele selectate mai jos — implicit azi)</span></label>
               <input type="date" id="docDate" class="date-input">
+            </div>
+            <div class="upload-field">
+              <label for="docValidUntil">Valabil până la <span class="hint">(opțional — data reală de expirare a documentului, nu a linkului)</span></label>
+              <input type="date" id="docValidUntil">
             </div>
             <div class="upload-field">
               <label id="docFileLabel">Fișiere (PDF sau imagine — poți selecta mai multe deodată, sau le poți trage direct aici; titlul fiecărui document se ia din numele fișierului)</label>
@@ -891,6 +916,14 @@
       <div class="collapsible-body" id="auditBody">
         <div class="hint" style="font-size:12px; color:#888; margin-bottom:10px;">Documentul de mai sus e o copie cu semnătura compusă vizual peste el, generată la semnare. Hash-ul de mai jos se calculează însă mereu pe fișierul original, nemodificat — nu pe această copie — ca să rămână o dovadă independentă de modul de afișare.</div>
         <div class="field">
+          <label>Valabil până la <span class="hint">(data reală de expirare a documentului, nu a linkului)</span></label>
+          <div class="value" id="mValidUntilDisplay">—</div>
+          <div class="inline-edit-row" id="mValidUntilEdit" style="display:none;">
+            <input type="date" id="mValidUntilInput">
+            <button type="button" id="mValidUntilSaveBtn" class="staff-resend-btn">Salvează</button>
+          </div>
+        </div>
+        <div class="field">
           <label>ID document</label>
           <div class="value" id="mDocId"></div>
         </div>
@@ -919,6 +952,11 @@
     <div id="pendingDetail" class="link-panel">
       <div><b id="pTitle"></b></div>
       <div id="pMeta" style="color:var(--muted); font-size:13.5px; margin-top:4px;"></div>
+      <div class="value" id="pValidUntilDisplay" style="margin-top:6px;"></div>
+      <div class="inline-edit-row" id="pValidUntilEdit" style="display:none; justify-content:center;">
+        <input type="date" id="pValidUntilInput">
+        <button type="button" id="pValidUntilSaveBtn" class="staff-resend-btn">Salvează</button>
+      </div>
 
       <div style="text-align:left; margin-top:14px;">
         <div class="doc-file-viewer" id="pFileViewer"></div>
@@ -1068,7 +1106,9 @@
   var docSearchInput = document.getElementById('docSearchInput');
 
   var docType = document.getElementById('docType');
+  var docTypeCustom = document.getElementById('docTypeCustom');
   var docDate = document.getElementById('docDate');
+  var docValidUntil = document.getElementById('docValidUntil');
   var docFile = document.getElementById('docFile');
   var submitDocBtn = document.getElementById('submitDocBtn');
   var uploadError = document.getElementById('uploadError');
@@ -1098,6 +1138,14 @@
     if (docDate.showPicker) {
       try { docDate.showPicker(); } catch (e) {}
     }
+  });
+
+  function getDocTypeValue() {
+    return docType.value === '__custom__' ? docTypeCustom.value.trim() : docType.value;
+  }
+  docType.addEventListener('change', function () {
+    docTypeCustom.style.display = docType.value === '__custom__' ? 'block' : 'none';
+    if (docType.value === '__custom__') docTypeCustom.focus();
   });
 
   // --- progressive disclosure: small "+" toggles that reveal a body, always starting closed ---
@@ -1329,23 +1377,35 @@
   }
 
   var EXPIRING_SOON_HOURS = 3;
+  var DOCUMENT_EXPIRY_WARN_DAYS = 30;
 
-  function renderStatsStrip(driverCount, signedCount, pendingCount, pendingRows) {
+  function renderStatsStrip(driverCount, signedCount, pendingCount, pendingRows, allDocsByDriver) {
     var now = Date.now();
     var soonMs = EXPIRING_SOON_HOURS * 60 * 60 * 1000;
-    var expiringSoon = (pendingRows || []).filter(function (d) {
+    var expiringLinks = (pendingRows || []).filter(function (d) {
       if (!d.expires_at) return false;
       var diff = new Date(d.expires_at).getTime() - now;
       return diff > 0 && diff <= soonMs;
     }).length;
+
+    var warnMs = DOCUMENT_EXPIRY_WARN_DAYS * 24 * 60 * 60 * 1000;
+    var expiringDocs = 0;
+    Object.keys(allDocsByDriver || {}).forEach(function (driverId) {
+      allDocsByDriver[driverId].forEach(function (item) {
+        if (item.validUntil && new Date(item.validUntil).getTime() - now <= warnMs) expiringDocs++;
+      });
+    });
 
     var parts = [
       '<span class="stat-item"><b>' + driverCount + '</b> șoferi</span>',
       '<span class="stat-item"><b>' + signedCount + '</b> semnate</span>',
       '<span class="stat-item"><b>' + pendingCount + '</b> în așteptare</span>'
     ];
-    if (expiringSoon > 0) {
-      parts.push('<span class="stat-item warn">⚠ <b>' + expiringSoon + '</b> link' + (expiringSoon > 1 ? 'uri expiră' : ' expiră') + ' în &lt;' + EXPIRING_SOON_HOURS + 'h — retrimiteți-le</span>');
+    if (expiringLinks > 0) {
+      parts.push('<span class="stat-item warn">⚠ <b>' + expiringLinks + '</b> link' + (expiringLinks > 1 ? 'uri expiră' : ' expiră') + ' în &lt;' + EXPIRING_SOON_HOURS + 'h — retrimiteți-le</span>');
+    }
+    if (expiringDocs > 0) {
+      parts.push('<span class="stat-item warn">⚠ <b>' + expiringDocs + '</b> document' + (expiringDocs > 1 ? 'e expiră' : ' expiră') + ' (valabilitate) în &lt;' + DOCUMENT_EXPIRY_WARN_DAYS + 'z</span>');
     }
     statsStrip.innerHTML = parts.join('');
   }
@@ -1388,16 +1448,17 @@
         row: r,
         title: doc ? doc.title : r.document_id,
         docType: doc ? doc.doc_type : '—',
-        docDate: doc ? doc.doc_date : fmtDate(r.signed_at)
+        docDate: doc ? doc.doc_date : fmtDate(r.signed_at),
+        validUntil: doc ? doc.valid_until : null
       });
     });
     pendingResult.data.forEach(function (d) {
-      pushDoc(d.driver_id, { type: 'pending', row: d, title: d.title, docType: d.doc_type, docDate: d.doc_date });
+      pushDoc(d.driver_id, { type: 'pending', row: d, title: d.title, docType: d.doc_type, docDate: d.doc_date, validUntil: d.valid_until });
     });
 
     var totalDocs = signedResult.data.length + pendingResult.data.length;
     topSubtitle.textContent = driversCache.length + ' șoferi · ' + totalDocs + ' documente';
-    renderStatsStrip(driversCache.length, signedResult.data.length, pendingResult.data.length, pendingResult.data);
+    renderStatsStrip(driversCache.length, signedResult.data.length, pendingResult.data.length, pendingResult.data, docsByDriver);
 
     renderDriverList();
 
@@ -1488,10 +1549,17 @@
 
     uploadError.classList.remove('show');
     linkResult.classList.remove('show');
-    docType.value = '';
-    docDate.value = todayStr();
-    resetStagedFiles();
+    resetUploadForm();
     if (isDriverSwitch) uploadCollapsible.close();
+  }
+
+  function resetUploadForm() {
+    docType.selectedIndex = 0;
+    docTypeCustom.value = '';
+    docTypeCustom.style.display = 'none';
+    docDate.value = todayStr();
+    docValidUntil.value = '';
+    resetStagedFiles();
   }
 
   function renderDocsList(driverId) {
@@ -1522,9 +1590,14 @@
     detailDocsNoMatch.style.display = 'none';
     detailDocsList.innerHTML = filteredDocs.map(function (item, idx) {
       var badge = item.type === 'signed' ? '<span class="badge">✓ Semnat</span>' : '<span class="badge pending">În așteptare</span>';
+      var validUntilPart = '';
+      if (item.validUntil) {
+        var isExpiring = new Date(item.validUntil).getTime() - Date.now() <= DOCUMENT_EXPIRY_WARN_DAYS * 24 * 60 * 60 * 1000;
+        validUntilPart = ' · <span' + (isExpiring ? ' class="doc-row-valid-warn"' : '') + '>valabil până la ' + escapeHtml(item.validUntil) + '</span>';
+      }
       return '' +
         '<div class="doc-row" data-idx="' + idx + '">' +
-          '<div class="doc-row-main"><span class="doc-row-title">' + escapeHtml(item.title) + '</span><span class="doc-row-meta">' + escapeHtml(item.docType) + ' · ' + escapeHtml(item.docDate) + '</span></div>' +
+          '<div class="doc-row-main"><span class="doc-row-title">' + escapeHtml(item.title) + '</span><span class="doc-row-meta">' + escapeHtml(item.docType) + ' · ' + escapeHtml(item.docDate) + validUntilPart + '</span></div>' +
           badge +
           '<span class="doc-row-arrow">›</span>' +
         '</div>';
@@ -1666,6 +1739,17 @@
     document.getElementById('mDocContent').textContent = row.document_content;
     document.getElementById('mSigImg').src = '';
 
+    var mValidUntilDisplay = document.getElementById('mValidUntilDisplay');
+    var mValidUntilEdit = document.getElementById('mValidUntilEdit');
+    var docValidUntilVal = row.documents ? row.documents.valid_until : null;
+    mValidUntilDisplay.textContent = docValidUntilVal || '—';
+    if (currentRole === 'admin' && row.documents) {
+      mValidUntilEdit.style.display = 'flex';
+      document.getElementById('mValidUntilInput').value = docValidUntilVal || '';
+    } else {
+      mValidUntilEdit.style.display = 'none';
+    }
+
     var fileViewerEl = document.getElementById('mFileViewer');
     var fileOpenLink = document.getElementById('mFileOpenLink');
     if (row.stamped_file_path) {
@@ -1723,6 +1807,36 @@
     // Replace/delete are Admin-only (see supabase/migrations/007_admin_only_actions.sql) —
     // hiding them for HR here is UX convenience, the RLS policy is the real boundary.
     var isAdmin = currentRole === 'admin';
+
+    var pValidUntilDisplay = document.getElementById('pValidUntilDisplay');
+    var pValidUntilEdit = document.getElementById('pValidUntilEdit');
+    var pValidUntilInput = document.getElementById('pValidUntilInput');
+    pValidUntilDisplay.textContent = doc.valid_until ? 'Valabil până la ' + doc.valid_until : '';
+    if (isAdmin) {
+      pValidUntilEdit.style.display = 'flex';
+      pValidUntilInput.value = doc.valid_until || '';
+      document.getElementById('pValidUntilSaveBtn').onclick = async function () {
+        var btn = this;
+        var newVal = pValidUntilInput.value || null;
+        btn.disabled = true;
+        btn.textContent = 'Se salvează…';
+        try {
+          var updateResult = await sb.from('documents').update({ valid_until: newVal }).eq('id', doc.id);
+          if (updateResult.error) throw updateResult.error;
+          doc.valid_until = newVal;
+          pValidUntilDisplay.textContent = newVal ? 'Valabil până la ' + newVal : '';
+          loadAll();
+        } catch (err) {
+          alert('Eroare la salvare: ' + (err.message || JSON.stringify(err)));
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Salvează';
+        }
+      };
+    } else {
+      pValidUntilEdit.style.display = 'none';
+    }
+
     var pendingActionsToggle = document.getElementById('pendingActionsToggle');
     pendingActionsToggle.style.display = isAdmin ? '' : 'none';
     pendingActionsCollapsible.close();
@@ -1842,6 +1956,26 @@
   overlay.addEventListener('click', function (e) {
     if (e.target === overlay) closeModal();
   });
+
+  document.getElementById('mValidUntilSaveBtn').addEventListener('click', async function () {
+    if (!currentRow || !currentRow.documents) return;
+    var btn = this;
+    var newVal = document.getElementById('mValidUntilInput').value || null;
+    btn.disabled = true;
+    btn.textContent = 'Se salvează…';
+    try {
+      var updateResult = await sb.from('documents').update({ valid_until: newVal }).eq('id', currentRow.documents.id);
+      if (updateResult.error) throw updateResult.error;
+      currentRow.documents.valid_until = newVal;
+      document.getElementById('mValidUntilDisplay').textContent = newVal || '—';
+      loadAll();
+    } catch (err) {
+      alert('Eroare la salvare: ' + (err.message || JSON.stringify(err)));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Salvează';
+    }
+  });
   refreshBtn.addEventListener('click', async function () {
     refreshBtn.disabled = true;
     refreshBtn.textContent = 'Se actualizează…';
@@ -1946,7 +2080,7 @@
     return file.type === 'application/pdf' || file.type.indexOf('image/') === 0;
   }
 
-  async function uploadOneDocument(file, driverId, type, date, index) {
+  async function uploadOneDocument(file, driverId, type, date, validUntil, index) {
     var fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
     var fileBuffer = await file.arrayBuffer();
     var fileHash = await sha256HexFromBuffer(fileBuffer);
@@ -1964,6 +2098,7 @@
       title: titleFromFilename(file.name),
       doc_type: type,
       doc_date: date,
+      valid_until: validUntil || null,
       file_path: filePath,
       file_type: fileType,
       file_hash: fileHash,
@@ -1979,8 +2114,9 @@
     linkResult.classList.remove('show');
 
     var driverId = selectedDriverId;
-    var type = docType.value.trim();
+    var type = getDocTypeValue();
     var date = docDate.value;
+    var validUntil = docValidUntil.value;
     var files = docFile.files;
 
     if (!driverId || !type || !date || !files || files.length === 0) {
@@ -2003,7 +2139,7 @@
       var uploaded = [];
       for (var i = 0; i < files.length; i++) {
         submitDocBtn.textContent = files.length > 1 ? 'Se încarcă (' + (i + 1) + '/' + files.length + ')…' : 'Se încarcă…';
-        uploaded.push(await uploadOneDocument(files[i], driverId, type, date, i));
+        uploaded.push(await uploadOneDocument(files[i], driverId, type, date, validUntil, i));
       }
 
       if (uploaded.length === 1) {
@@ -2019,9 +2155,7 @@
       }
       linkResult.classList.add('show');
 
-      docType.value = '';
-      docDate.value = todayStr();
-      resetStagedFiles();
+      resetUploadForm();
 
       await loadAll();
       if (driverId) selectDriver(driverId);
