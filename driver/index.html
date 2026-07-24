@@ -143,6 +143,15 @@
     width: 100%;
     display: block;
   }
+  .pdf-pages-skipped {
+    padding: 14px 16px;
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    background: #fff;
+    border-top: 6px solid #f7f7f7;
+    border-bottom: 6px solid #f7f7f7;
+  }
   .sig-hint-marker {
     position: absolute;
     left: 0;
@@ -779,13 +788,44 @@
     return null;
   }
 
+  // Cap on how many pages get rendered to <canvas> — a 50-page contract would otherwise
+  // render (and hold in memory) 50 full-resolution canvases on the driver's phone. Above
+  // the cap, render the first pages plus always the last OCR_MAX_PAGES_TO_SCAN (so OCR
+  // placement still works, since it only ever looks at the last few pages anyway), with a
+  // placeholder for what's skipped — "open in a new tab" already covers full inspection.
+  var MAX_PAGES_TO_RENDER = 15;
+
+  function pickPagesToRender(numPages) {
+    if (numPages <= MAX_PAGES_TO_RENDER) {
+      var all = [];
+      for (var i = 1; i <= numPages; i++) all.push(i);
+      return all;
+    }
+    var headCount = MAX_PAGES_TO_RENDER - OCR_MAX_PAGES_TO_SCAN;
+    var result = [];
+    for (var h = 1; h <= headCount; h++) result.push(h);
+    result.push('skip:' + (numPages - OCR_MAX_PAGES_TO_SCAN - headCount));
+    for (var t = numPages - OCR_MAX_PAGES_TO_SCAN + 1; t <= numPages; t++) result.push(t);
+    return result;
+  }
+
   async function renderPdfPages(url, container) {
     var pdfjsLib = await loadPdfjs();
     var pdf = await pdfjsLib.getDocument({ url: url }).promise;
     var pages = [];
     var targetCssWidth = container.clientWidth || 320;
     var dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2); // capped — OCR/render cost grows with pixel count
-    for (var i = 1; i <= pdf.numPages; i++) {
+    var plan = pickPagesToRender(pdf.numPages);
+    for (var p = 0; p < plan.length; p++) {
+      var item = plan[p];
+      if (typeof item === 'string') {
+        var skipped = document.createElement('div');
+        skipped.className = 'pdf-pages-skipped';
+        skipped.textContent = '(' + item.split(':')[1] + ' pagini omise aici pentru performanță — folosiți linkul de mai jos pentru documentul complet)';
+        container.appendChild(skipped);
+        continue;
+      }
+      var i = item;
       var page = await pdf.getPage(i);
       var baseViewport = page.getViewport({ scale: 1 });
       var scale = (targetCssWidth * dpr) / baseViewport.width;
