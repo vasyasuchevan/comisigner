@@ -5,49 +5,84 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Verificare semnătură — ComiSigner</title>
 <style>
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --muted-soft: #94a3b8;
+    --bg-alt: #f8fafc;
+    --border: #e2e8f0;
+    --accent-sky: #0ea5e9;
+    --accent-indigo: #6366f1;
+    --success: #16a34a;
+    --success-bg: #f0fdf4;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --radius-lg: 20px;
+    --radius-md: 12px;
+    --shadow-card: 0 6px 20px rgba(2,6,23,0.05);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    background: #f2f4f7;
+    font-family: var(--font);
     margin: 0;
-    padding: 16px;
-    color: #1a1a1a;
+    padding: 24px 16px;
+    color: var(--ink);
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 550px at 85% -10%, rgba(14,165,233,0.13), transparent),
+      radial-gradient(700px 380px at -10% 15%, rgba(99,102,241,0.10), transparent),
+      linear-gradient(180deg, #ffffff 0%, var(--bg-alt) 100%);
   }
   .card {
     background: #fff;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     max-width: 480px;
     margin: 0 auto 16px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 24px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
   }
-  h1 { font-size: 19px; margin: 0 0 4px; text-align: center; }
-  .subtitle { font-size: 13px; color: #666; text-align: center; margin-bottom: 18px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px; text-align: center; }
+  .subtitle { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 20px; line-height: 1.5; }
   .state-msg {
     text-align: center;
-    color: #666;
-    padding: 20px 8px;
+    color: var(--muted);
+    padding: 28px 8px;
     font-size: 14.5px;
   }
-  .state-msg.error { color: #c0342c; }
+  .state-msg.error { color: var(--danger); }
   .badge {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     text-align: center;
-    border-radius: 8px;
-    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
     font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 16px;
+    font-weight: 700;
+    margin-bottom: 18px;
+    border: 1px solid transparent;
   }
-  .badge.ok { background: #e6f4ea; color: #1e7e34; }
-  .badge.bad { background: #fdecea; color: #c0342c; }
-  .field { margin-bottom: 10px; }
+  .badge.ok { background: var(--success-bg); color: var(--success); border-color: #bbf0cd; }
+  .badge.bad { background: var(--danger-bg); color: var(--danger); border-color: #fecaca; }
+  .badge .chain-icon { flex: none; width: 18px; height: 18px; }
+  .field {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--bg-alt);
+    border-radius: var(--radius-md);
+  }
   .field label {
     display: block;
-    font-size: 12px;
-    color: #777;
-    margin-bottom: 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 3px;
   }
   .field .value {
     font-size: 13.5px;
@@ -57,25 +92,29 @@
     font-family: "SFMono-Regular", Consolas, monospace;
     font-size: 12px;
     word-break: break-all;
-    background: #f5f5f5;
+    background: #fff;
     padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid #eaeaea;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: block;
+    margin-top: 2px;
   }
   .hint {
     font-size: 12px;
-    color: #888;
-    margin-top: 12px;
-    line-height: 1.5;
+    color: var(--muted-soft);
+    margin-top: 14px;
+    line-height: 1.55;
   }
   .home-link {
     display: block;
     text-align: center;
     font-size: 13px;
-    color: #2563eb;
+    color: var(--accent-indigo);
+    font-weight: 600;
     text-decoration: none;
-    margin-top: 16px;
+    margin-top: 18px;
   }
+  .home-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -147,9 +186,12 @@
       var expected = await sha256Hex((r.prev_chain_hash || 'GENESIS') + '|' + r.hash);
       var chainOk = expected === r.chain_hash;
 
+      var chainIconOk = '<svg class="chain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 15l6-6"/><path d="M7 12l-2 2a3 3 0 0 0 4 4l2-2"/><path d="M17 12l2-2a3 3 0 0 0-4-4l-2 2"/></svg>';
+      var chainIconBad = '<svg class="chain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>';
+
       var html = '';
       html += '<div class="badge ' + (chainOk ? 'ok' : 'bad') + '">' +
-        (chainOk ? '✓ Integritate confirmată — poziția #' + r.seq + ' din lanțul de audit' : '✗ ATENȚIE — această înregistrare nu se potrivește cu lanțul de audit') +
+        (chainOk ? chainIconOk + 'Integritate confirmată — poziția #' + r.seq + ' din lanțul de audit' : chainIconBad + 'ATENȚIE — această înregistrare nu se potrivește cu lanțul de audit') +
         '</div>';
 
       html += '<div class="field"><label>Șofer</label><div class="value">' + escapeHtml(r.driver_name) + '</div></div>';
