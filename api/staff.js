@@ -12,6 +12,7 @@
 // "no build step" convention.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
+const SITE_URL = 'https://comisigner.vercel.app';
 
 function adminHeaders(serviceRoleKey, extra) {
   return Object.assign(
@@ -115,11 +116,18 @@ module.exports = async function handler(req, res) {
       const role = body.role === 'admin' ? 'admin' : 'hr';
       if (!email) { res.status(400).json({ error: 'Lipsește adresa de e-mail.' }); return; }
 
-      const inviteResp = await fetch(SUPABASE_URL + '/auth/v1/invite', {
-        method: 'POST',
-        headers: adminHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ email: email })
-      });
+      // redirect_to must also be added to Supabase Dashboard → Authentication →
+      // URL Configuration → Redirect URLs, or Supabase silently falls back to
+      // whatever "Site URL" is configured there (this is what caused the invite
+      // link to redirect to a dead localhost:3000 the first time this ran).
+      const inviteResp = await fetch(
+        SUPABASE_URL + '/auth/v1/invite?redirect_to=' + encodeURIComponent(SITE_URL + '/office/'),
+        {
+          method: 'POST',
+          headers: adminHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ email: email })
+        }
+      );
       const inviteJson = await inviteResp.json();
       if (!inviteResp.ok) throw new Error(inviteJson.msg || inviteJson.error_description || 'Nu s-a putut trimite invitația.');
 

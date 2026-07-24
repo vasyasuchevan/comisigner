@@ -673,6 +673,23 @@
   </div>
 </div>
 
+<div class="login-wrap" id="setPasswordWrap" style="display:none;">
+  <div class="card">
+    <h1 id="setPasswordTitle">Setează parola</h1>
+    <div class="subtitle">Contul tău a fost creat. Alege o parolă ca să te poți autentifica de acum înainte.</div>
+    <div class="login-field">
+      <label for="newPasswordInput">Parolă nouă</label>
+      <input type="password" id="newPasswordInput" autocomplete="new-password">
+    </div>
+    <div class="login-field">
+      <label for="newPasswordConfirm">Confirmă parola</label>
+      <input type="password" id="newPasswordConfirm" autocomplete="new-password">
+    </div>
+    <button id="setPasswordBtn" type="button">Salvează parola</button>
+    <div class="login-error" id="setPasswordError"></div>
+  </div>
+</div>
+
 <div class="wrap" id="appWrap" style="display:none;">
   <div class="top-bar">
     <div>
@@ -918,6 +935,13 @@
   var loginBtn = document.getElementById('loginBtn');
   var loginError = document.getElementById('loginError');
 
+  var setPasswordWrap = document.getElementById('setPasswordWrap');
+  var setPasswordTitle = document.getElementById('setPasswordTitle');
+  var newPasswordInput = document.getElementById('newPasswordInput');
+  var newPasswordConfirm = document.getElementById('newPasswordConfirm');
+  var setPasswordBtn = document.getElementById('setPasswordBtn');
+  var setPasswordError = document.getElementById('setPasswordError');
+
   var roleBadge = document.getElementById('roleBadge');
   var noRoleBanner = document.getElementById('noRoleBanner');
 
@@ -1046,11 +1070,62 @@
   function showLogin(message) {
     loginWrap.style.display = 'block';
     appWrap.style.display = 'none';
+    setPasswordWrap.style.display = 'none';
     if (message) {
       loginError.textContent = message;
       loginError.classList.add('show');
     }
   }
+
+  // --- invite / password-recovery links land here with #access_token=...&type=invite|recovery ---
+  function getHashParam(name) {
+    var hash = window.location.hash || '';
+    if (hash.indexOf('#') === 0) hash = hash.slice(1);
+    return new URLSearchParams(hash).get(name);
+  }
+
+  function showSetPassword(isRecovery) {
+    loginWrap.style.display = 'none';
+    appWrap.style.display = 'none';
+    setPasswordWrap.style.display = 'block';
+    setPasswordTitle.textContent = isRecovery ? 'Resetează parola' : 'Setează parola';
+  }
+
+  setPasswordBtn.addEventListener('click', async function () {
+    setPasswordError.classList.remove('show');
+    var pw = newPasswordInput.value;
+    var pw2 = newPasswordConfirm.value;
+    if (!pw || pw.length < 8) {
+      setPasswordError.textContent = 'Parola trebuie să aibă cel puțin 8 caractere.';
+      setPasswordError.classList.add('show');
+      return;
+    }
+    if (pw !== pw2) {
+      setPasswordError.textContent = 'Parolele introduse nu coincid.';
+      setPasswordError.classList.add('show');
+      return;
+    }
+    setPasswordBtn.disabled = true;
+    setPasswordBtn.textContent = 'Se salvează…';
+    try {
+      var sessionResult = await sb.auth.getSession();
+      if (!sessionResult.data.session) {
+        throw new Error('Linkul a expirat sau a fost deja folosit — cereți unul nou.');
+      }
+      var updateResult = await sb.auth.updateUser({ password: pw });
+      if (updateResult.error) throw updateResult.error;
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      newPasswordInput.value = '';
+      newPasswordConfirm.value = '';
+      setPasswordWrap.style.display = 'none';
+      showApp();
+    } catch (err) {
+      setPasswordError.textContent = 'Eroare: ' + (err.message || JSON.stringify(err));
+      setPasswordError.classList.add('show');
+      setPasswordBtn.disabled = false;
+      setPasswordBtn.textContent = 'Salvează parola';
+    }
+  });
 
   function showApp() {
     loginWrap.style.display = 'none';
@@ -1958,7 +2033,12 @@
     }
   });
 
-  checkSession();
+  var authFlowType = getHashParam('type');
+  if (authFlowType === 'invite' || authFlowType === 'recovery') {
+    showSetPassword(authFlowType === 'recovery');
+  } else {
+    checkSession();
+  }
 })();
 </script>
 
