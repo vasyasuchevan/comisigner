@@ -678,7 +678,7 @@
   var ocrWorkerPromise = null;
   function getOcrWorker() {
     if (!ocrWorkerPromise) {
-      ocrWorkerPromise = Tesseract.createWorker('ron+eng', 1, {
+      ocrWorkerPromise = Tesseract.createWorker('ron+eng+rus+ukr', 1, {
         workerPath: 'vendor/tesseract/worker.min.js',
         corePath: 'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
         langPath: 'vendor/tesseract/lang-data'
@@ -690,8 +690,11 @@
   // "Strong" stems name the signature itself; "weak" ones (subsemnatul/subscris, "the
   // undersigned") often show up earlier, inside a disclaimer sentence, before the actual
   // signature line — so a weak match is only used if no strong one exists on the page.
-  var SIGNATURE_KEYWORD_STEMS_STRONG = ['semnatur', 'signatur', 'подпис'];
-  var SIGNATURE_KEYWORD_STEMS_WEAK = ['subsemnat', 'subscris'];
+  // 'подпис' covers Russian (подпись); Ukrainian spells the same word with a different
+  // letter (підпис, not "подпис") so it needs its own stem — a Cyrillic substring match
+  // against the wrong language's spelling would just never fire.
+  var SIGNATURE_KEYWORD_STEMS_STRONG = ['semnatur', 'signatur', 'подпис', 'підпис'];
+  var SIGNATURE_KEYWORD_STEMS_WEAK = ['subsemnat', 'subscris', 'нижеподписав', 'нижчепідписан'];
 
   function stripDiacritics(s) {
     return String(s || '')
@@ -737,7 +740,7 @@
   }
 
   var OCR_MAX_PAGES_TO_SCAN = 3;
-  var OCR_TIME_BUDGET_MS = 8000;
+  var OCR_TIME_BUDGET_MS = 14000; // 4 languages in one pass take longer than the 2 this was tuned for
 
   async function findSignatureSpot(pages) {
     var scanOrder = pages.slice(-OCR_MAX_PAGES_TO_SCAN).reverse(); // last pages first — signature lines are almost always near the end
