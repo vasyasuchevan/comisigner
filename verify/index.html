@@ -115,6 +115,9 @@
     margin-top: 18px;
   }
   .home-link:hover { text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
 </style>
 </head>
 <body>

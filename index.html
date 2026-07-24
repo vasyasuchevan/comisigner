@@ -115,6 +115,10 @@
     color: var(--muted-soft);
     margin-top: 22px;
   }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    a.card:hover { transform: none; }
+  }
 </style>
 </head>
 <body>
