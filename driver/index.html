@@ -123,6 +123,13 @@
     width: 100%;
     display: block;
   }
+  .file-viewer-fallback {
+    padding: 24px 16px;
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    background: #fafafa;
+  }
   .file-open-link {
     display: block;
     text-align: center;
@@ -596,7 +603,10 @@
     if (fileType === 'pdf') {
       return '<embed src="' + url + '" type="application/pdf">';
     }
-    return '<img src="' + url + '" alt="document">';
+    if (fileType === 'image') {
+      return '<img src="' + url + '" alt="document">';
+    }
+    return '<div class="file-viewer-fallback">Acest tip de fișier nu poate fi previzualizat direct aici. Folosiți linkul de mai jos ca să îl deschideți.</div>';
   }
 
   function resetSignControls() {

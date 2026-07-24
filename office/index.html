@@ -1110,6 +1110,10 @@
     return base.charAt(0).toUpperCase() + base.slice(1);
   }
 
+  function isSupportedFile(file) {
+    return file.type === 'application/pdf' || file.type.indexOf('image/') === 0;
+  }
+
   async function uploadOneDocument(file, driverId, type, date, index) {
     var fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
     var fileBuffer = await file.arrayBuffer();
@@ -1151,6 +1155,14 @@
       uploadError.textContent = 'Completați toate câmpurile și alegeți cel puțin un fișier.';
       uploadError.classList.add('show');
       return;
+    }
+
+    for (var fi = 0; fi < files.length; fi++) {
+      if (!isSupportedFile(files[fi])) {
+        uploadError.textContent = 'Fișierul „' + files[fi].name + '" nu este acceptat — se pot încărca doar PDF sau imagini (jpg, png etc.).';
+        uploadError.classList.add('show');
+        return;
+      }
     }
 
     submitDocBtn.disabled = true;
