@@ -175,6 +175,35 @@
     background: #fff;
     display: block;
   }
+  .doc-file-viewer {
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .doc-file-viewer embed {
+    width: 100%;
+    height: 340px;
+    display: block;
+  }
+  .doc-file-viewer img {
+    width: 100%;
+    display: block;
+  }
+  .doc-file-viewer-fallback {
+    padding: 20px 14px;
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    background: #fafafa;
+  }
+  .doc-file-open-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+  }
   #verifyBtn { background: #2563eb; color: #fff; margin-top: 6px; }
   #verifyBtn:disabled { background: #93b4f5; cursor: not-allowed; }
   .verify-result {
@@ -510,12 +539,22 @@
 
     <div id="signedDetail">
       <div class="field">
-        <label>ID document</label>
-        <div class="value" id="mDocId"></div>
-      </div>
-      <div class="field">
         <label>Șofer</label>
         <div class="value" id="mDriver"></div>
+      </div>
+      <div class="field">
+        <label>Document semnat</label>
+        <div class="doc-file-viewer" id="mFileViewer"></div>
+        <a class="doc-file-open-link" id="mFileOpenLink" href="#" target="_blank" rel="noopener" style="display:none;">Deschide documentul într-o filă nouă</a>
+      </div>
+      <div class="field">
+        <label>Semnătura colectată la semnare</label>
+        <img class="sig-img" id="mSigImg" alt="semnătură">
+        <div class="hint" style="font-size:12px; color:#888; margin-top:4px;">Semnătura e păstrată separat de document (nu suprapusă peste el), astfel încât hash-ul de mai jos să rămână verificabil pe fișierul original, nemodificat.</div>
+      </div>
+      <div class="field">
+        <label>ID document</label>
+        <div class="value" id="mDocId"></div>
       </div>
       <div class="field">
         <label>Data/ora semnării (ISO 8601)</label>
@@ -532,10 +571,6 @@
       <div class="field">
         <label>Conținutul documentului la momentul semnării</label>
         <div class="doc-content" id="mDocContent"></div>
-      </div>
-      <div class="field">
-        <label>Imagine semnătură</label>
-        <img class="sig-img" id="mSigImg" alt="semnătură">
       </div>
 
       <button id="verifyBtn" type="button">Verifică integritatea</button>
@@ -941,6 +976,16 @@
     return result.data.signedUrl;
   }
 
+  function docFileViewerHtml(fileType, url) {
+    if (fileType === 'pdf') {
+      return '<embed src="' + url + '" type="application/pdf">';
+    }
+    if (fileType === 'image') {
+      return '<img src="' + url + '" alt="document">';
+    }
+    return '<div class="doc-file-viewer-fallback">Acest tip de fișier nu poate fi previzualizat direct aici. Folosiți linkul de mai jos ca să îl deschideți.</div>';
+  }
+
   async function openSignedModal(row) {
     currentRow = row;
     signedDetail.style.display = 'block';
@@ -953,6 +998,18 @@
     document.getElementById('mHash').textContent = row.hash;
     document.getElementById('mDocContent').textContent = row.document_content;
     document.getElementById('mSigImg').src = '';
+
+    var fileViewerEl = document.getElementById('mFileViewer');
+    var fileOpenLink = document.getElementById('mFileOpenLink');
+    if (row.documents && row.documents.file_path) {
+      var docUrl = sb.storage.from('documents').getPublicUrl(row.documents.file_path).data.publicUrl;
+      fileViewerEl.innerHTML = docFileViewerHtml(row.documents.file_type, docUrl);
+      fileOpenLink.href = docUrl;
+      fileOpenLink.style.display = 'block';
+    } else {
+      fileViewerEl.innerHTML = '<div class="doc-file-viewer-fallback">Documentul original nu a fost găsit (posibil șters).</div>';
+      fileOpenLink.style.display = 'none';
+    }
 
     verifyResult.className = 'verify-result';
     verifyResult.textContent = '';
