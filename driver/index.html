@@ -76,6 +76,8 @@
     max-width: 200px;
   }
   .welcome-view { text-align: center; }
+  .welcome-brand-link { display: inline-block; text-decoration: none; color: inherit; }
+  .welcome-brand-link:hover .welcome-title { color: var(--accent-indigo); }
   .welcome-logo {
     width: 60px;
     height: 60px;
@@ -394,8 +396,10 @@
 
 <div class="card" id="stateCard">
   <div class="welcome-view" id="welcomeView">
-    <img class="welcome-logo" src="icons/icon-192.png" alt="ComiSigner">
-    <h1 class="welcome-title">ComiSigner — Șofer</h1>
+    <a class="welcome-brand-link" href="../">
+      <img class="welcome-logo" src="icons/icon-192.png" alt="ComiSigner">
+      <h1 class="welcome-title">ComiSigner — Șofer</h1>
+    </a>
     <div class="welcome-text">Veți primi un link către fiecare document de semnat direct de la birou. Lipiți linkul (sau doar codul documentului) mai jos pentru a continua.</div>
     <div class="welcome-field">
       <input type="text" id="linkInput" placeholder="Lipiți linkul sau codul documentului">

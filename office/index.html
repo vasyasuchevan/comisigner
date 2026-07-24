@@ -500,6 +500,148 @@
   }
   .replace-file-status.show { display: block; }
 
+  /* --- progressive disclosure: collapsible sections, opened via a "+" toggle --- */
+  .collapsible-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+  .collapsible-icon,
+  .icon-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .icon-toggle-btn:hover { background: var(--border); }
+  .collapsible-toggle[aria-expanded="true"] .collapsible-icon,
+  .icon-toggle-btn[aria-expanded="true"] { transform: rotate(45deg); background: var(--border); }
+  .collapsible-body {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.2s ease, opacity 0.15s ease;
+  }
+  .collapsible-body.open {
+    max-height: 2000px;
+    opacity: 1;
+    margin-top: 12px;
+  }
+
+  /* --- custom file picker for document upload --- */
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .file-picker-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    color: var(--ink);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .file-picker-btn:hover { background: var(--bg-alt); border-color: var(--accent-indigo); }
+  .file-picker-btn:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
+  .staged-files-list { margin-top: 10px; }
+  .staged-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    margin-bottom: 6px;
+    background: var(--bg-alt);
+  }
+  .staged-file-row.rejected { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+  .staged-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .staged-file-size { color: var(--muted-soft); font-size: 12px; white-space: nowrap; }
+  .staged-file-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 15px;
+    padding: 2px 6px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .staged-file-remove:hover { background: #fff; border-radius: 6px; }
+
+  /* --- header brand link --- */
+  .brand-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .brand-link:hover { color: var(--accent-indigo); }
+
+  /* --- refresh button feedback --- */
+  .refresh-timestamp { font-size: 12px; color: var(--muted-soft); margin-top: 2px; }
+
+  /* --- staff ("Echipă") panel --- */
+  .staff-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 6px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .staff-row-main { min-width: 0; }
+  .staff-row-name { font-weight: 700; font-size: 14px; }
+  .staff-row-email { font-size: 12.5px; color: var(--muted); }
+  .staff-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .staff-role-select {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .staff-deactivate-btn { background: var(--danger-bg); color: var(--danger); padding: 6px 10px; font-size: 12.5px; }
+  .staff-deactivate-btn:hover { background: var(--danger-border); }
+  .staff-deactivated { opacity: 0.55; }
+  .staff-status-pill {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted-soft);
+  }
+
   @media (max-width: 760px) {
     .layout { grid-template-columns: 1fr; }
     .layout:not(.mobile-detail) .detail-panel { display: none; }
@@ -534,10 +676,12 @@
 <div class="wrap" id="appWrap" style="display:none;">
   <div class="top-bar">
     <div>
-      <h1>ComiSigner · Birou <span class="role-badge" id="roleBadge"></span></h1>
+      <h1><a class="brand-link" href="../">ComiSigner · Birou</a> <span class="role-badge" id="roleBadge"></span></h1>
       <div class="subtitle" id="topSubtitle">Se încarcă…</div>
+      <div class="refresh-timestamp" id="refreshTimestamp"></div>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="staffBtn" type="button" style="display:none;">Echipă</button>
       <button id="chainBtn" type="button">Verifică lanțul complet</button>
       <button id="refreshBtn" type="button">Reîmprospătează</button>
       <button id="logoutBtn" type="button">Deconectare</button>
@@ -550,13 +694,18 @@
 
   <div class="layout" id="layoutEl">
     <aside class="driver-panel card" id="driverPanel">
-      <h2 style="margin:0 0 10px;">Șoferi</h2>
-      <div class="new-driver-row">
-        <input type="text" id="newDriverName" placeholder="Nume șofer nou">
-        <button id="submitDriverBtn" type="button">Adaugă</button>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:0 0 10px;">
+        <h2 style="margin:0;">Șoferi</h2>
+        <button type="button" class="icon-toggle-btn" id="addDriverToggle" aria-expanded="false" aria-controls="addDriverBody" aria-label="Adaugă șofer nou" title="Adaugă șofer nou">+</button>
       </div>
-      <input type="text" id="newDriverPhone" placeholder="Telefon (opțional)">
-      <div class="upload-error" id="driverError"></div>
+      <div class="collapsible-body" id="addDriverBody">
+        <div class="new-driver-row">
+          <input type="text" id="newDriverName" placeholder="Nume șofer nou">
+          <button id="submitDriverBtn" type="button">Adaugă</button>
+        </div>
+        <input type="text" id="newDriverPhone" placeholder="Telefon (opțional)">
+        <div class="upload-error" id="driverError"></div>
+      </div>
       <div id="driverListEl" class="driver-list"></div>
     </aside>
 
@@ -584,29 +733,35 @@
         <div class="state-msg" id="detailDocsEmpty" style="display:none;">Niciun document încă pentru acest șofer.</div>
 
         <div class="upload-inline">
-          <h3 class="detail-subhead">+ Adaugă document(e)</h3>
-          <div class="upload-field">
-            <label for="docType">Tip document <span class="hint">(se aplică la toate fișierele selectate mai jos)</span></label>
-            <input type="text" id="docType" placeholder="ex: Permis de conducere">
-          </div>
-          <div class="upload-field">
-            <label for="docDate">Data <span class="hint">(se aplică la toate fișierele selectate mai jos — implicit azi)</span></label>
-            <input type="date" id="docDate" class="date-input">
-          </div>
-          <div class="upload-field">
-            <label for="docFile">Fișiere (PDF sau imagine — poți selecta mai multe deodată; titlul fiecărui document se ia din numele fișierului)</label>
-            <input type="file" id="docFile" accept="application/pdf,image/*" multiple>
-          </div>
-          <button id="submitDocBtn" type="button">Încarcă și generează link</button>
-          <div class="upload-error" id="uploadError"></div>
-          <div class="link-result" id="linkResult">
-            <div id="linkResultSingle">
-              <div>✓ Document încărcat. Trimiteți acest link șoferului (expiră în 24h):</div>
-              <div class="value" id="linkValue"></div>
-              <div class="qr-wrap" id="linkQr"></div>
-              <button id="copyLinkBtn" type="button">Copiază linkul</button>
+          <button type="button" class="collapsible-toggle detail-subhead" id="uploadToggle" aria-expanded="false" aria-controls="uploadBody">
+            <span class="collapsible-icon">+</span> Adaugă document(e)
+          </button>
+          <div class="collapsible-body" id="uploadBody">
+            <div class="upload-field">
+              <label for="docType">Tip document <span class="hint">(se aplică la toate fișierele selectate mai jos)</span></label>
+              <input type="text" id="docType" placeholder="ex: Permis de conducere">
             </div>
-            <div id="linkResultMulti" style="display:none;">✓ <span id="linkResultMultiText"></span> — apasă pe fiecare document din lista de mai sus pentru linkul lui individual, sau folosește „Link pentru tot dosarul" mai sus.</div>
+            <div class="upload-field">
+              <label for="docDate">Data <span class="hint">(se aplică la toate fișierele selectate mai jos — implicit azi)</span></label>
+              <input type="date" id="docDate" class="date-input">
+            </div>
+            <div class="upload-field">
+              <label id="docFileLabel">Fișiere (PDF sau imagine — poți selecta mai multe deodată; titlul fiecărui document se ia din numele fișierului)</label>
+              <label class="file-picker-btn" for="docFile">📎 Alege fișiere…</label>
+              <input type="file" id="docFile" accept="application/pdf,image/*" multiple class="visually-hidden" aria-describedby="docFileLabel">
+              <div id="stagedFilesList" class="staged-files-list"></div>
+            </div>
+            <button id="submitDocBtn" type="button">Încarcă și generează link</button>
+            <div class="upload-error" id="uploadError"></div>
+            <div class="link-result" id="linkResult">
+              <div id="linkResultSingle">
+                <div>✓ Document încărcat. Trimiteți acest link șoferului (expiră în 24h):</div>
+                <div class="value" id="linkValue"></div>
+                <div class="qr-wrap" id="linkQr"></div>
+                <button id="copyLinkBtn" type="button">Copiază linkul</button>
+              </div>
+              <div id="linkResultMulti" style="display:none;">✓ <span id="linkResultMultiText"></span> — apasă pe fiecare document din lista de mai sus pentru linkul lui individual, sau folosește „Link pentru tot dosarul" mai sus.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -684,17 +839,57 @@
   </div>
 </div>
 
+<div class="overlay" id="staffOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Echipă</h2>
+      <button id="closeStaffModalBtn" type="button">Închide</button>
+    </div>
+
+    <div class="upload-error" id="staffError"></div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <h3 class="detail-subhead" style="margin:0;">Colegi</h3>
+      <button type="button" class="icon-toggle-btn" id="addStaffToggle" aria-expanded="false" aria-controls="addStaffBody" aria-label="Adaugă coleg" title="Adaugă coleg">+</button>
+    </div>
+    <div class="collapsible-body" id="addStaffBody">
+      <div class="upload-field">
+        <label for="newStaffEmail">E-mail</label>
+        <input type="email" id="newStaffEmail" placeholder="coleg@exemplu.ro">
+      </div>
+      <div class="upload-field">
+        <label for="newStaffName">Nume (opțional)</label>
+        <input type="text" id="newStaffName" placeholder="Nume complet">
+      </div>
+      <div class="upload-field">
+        <label for="newStaffRole">Rol</label>
+        <select id="newStaffRole" class="staff-role-select" style="width:100%; padding:10px 12px; font-size:15px;">
+          <option value="hr">HR</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button id="submitStaffBtn" type="button">Trimite invitație</button>
+    </div>
+
+    <div class="state-msg" id="staffListEmpty" style="display:none;">Se încarcă…</div>
+    <div id="staffListEl"></div>
+  </div>
+</div>
+
 <script src="vendor/supabase.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script>
   var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
-  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage }
+  });
 </script>
 <script>
 (function () {
   var topSubtitle = document.getElementById('topSubtitle');
   var refreshBtn = document.getElementById('refreshBtn');
+  var refreshTimestamp = document.getElementById('refreshTimestamp');
   var logoutBtn = document.getElementById('logoutBtn');
   var chainBtn = document.getElementById('chainBtn');
   var chainResult = document.getElementById('chainResult');
@@ -702,6 +897,19 @@
   var closeModalBtn = document.getElementById('closeModalBtn');
   var verifyBtn = document.getElementById('verifyBtn');
   var verifyResult = document.getElementById('verifyResult');
+
+  var staffBtn = document.getElementById('staffBtn');
+  var staffOverlay = document.getElementById('staffOverlay');
+  var closeStaffModalBtn = document.getElementById('closeStaffModalBtn');
+  var staffError = document.getElementById('staffError');
+  var newStaffEmail = document.getElementById('newStaffEmail');
+  var newStaffName = document.getElementById('newStaffName');
+  var newStaffRole = document.getElementById('newStaffRole');
+  var submitStaffBtn = document.getElementById('submitStaffBtn');
+  var staffListEmpty = document.getElementById('staffListEmpty');
+  var staffListEl = document.getElementById('staffListEl');
+  var currentRole = null;
+  var currentAccessToken = null;
 
   var loginWrap = document.getElementById('loginWrap');
   var appWrap = document.getElementById('appWrap');
@@ -747,6 +955,8 @@
   var driversCache = [];
   var docsByDriver = {};
   var selectedDriverId = null;
+  var lastDetailDriverId = undefined;
+  var stagedFiles = [];
 
   function todayStr() {
     var d = new Date();
@@ -762,9 +972,84 @@
     }
   });
 
-  function showLogin() {
+  // --- progressive disclosure: small "+" toggles that reveal a body, always starting closed ---
+  function initCollapsible(toggleBtn, bodyEl, startOpen) {
+    function setOpen(open) {
+      toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      bodyEl.classList.toggle('open', open);
+    }
+    toggleBtn.addEventListener('click', function () {
+      setOpen(toggleBtn.getAttribute('aria-expanded') !== 'true');
+    });
+    setOpen(!!startOpen);
+    return {
+      open: function () { setOpen(true); },
+      close: function () { setOpen(false); }
+    };
+  }
+
+  var uploadCollapsible = initCollapsible(document.getElementById('uploadToggle'), document.getElementById('uploadBody'), false);
+  var driverAddCollapsible = initCollapsible(document.getElementById('addDriverToggle'), document.getElementById('addDriverBody'), false);
+  var staffAddCollapsible = initCollapsible(document.getElementById('addStaffToggle'), document.getElementById('addStaffBody'), false);
+
+  // --- staged multi-file picker: docFile stays the source of truth via DataTransfer ---
+  var stagedFilesList = document.getElementById('stagedFilesList');
+
+  function syncDocFileInput() {
+    var dt = new DataTransfer();
+    stagedFiles.forEach(function (f) { dt.items.add(f); });
+    docFile.files = dt.files;
+  }
+
+  function renderStagedFiles() {
+    if (stagedFiles.length === 0) {
+      stagedFilesList.innerHTML = '';
+      return;
+    }
+    stagedFilesList.innerHTML = stagedFiles.map(function (f, idx) {
+      var ok = isSupportedFile(f);
+      var sizeLabel = (f.size / 1024).toFixed(0) + ' KB';
+      return '' +
+        '<div class="staged-file-row' + (ok ? '' : ' rejected') + '">' +
+          '<span class="staged-file-name">' + escapeHtml(f.name) + (ok ? '' : ' — tip neacceptat') + '</span>' +
+          '<span class="staged-file-size">' + sizeLabel + '</span>' +
+          '<button type="button" class="staged-file-remove" data-idx="' + idx + '" aria-label="Elimină ' + escapeHtml(f.name) + '">✕</button>' +
+        '</div>';
+    }).join('');
+    stagedFilesList.querySelectorAll('.staged-file-remove').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        stagedFiles.splice(Number(btn.getAttribute('data-idx')), 1);
+        syncDocFileInput();
+        renderStagedFiles();
+      });
+    });
+  }
+
+  function resetStagedFiles() {
+    stagedFiles = [];
+    syncDocFileInput();
+    renderStagedFiles();
+  }
+
+  docFile.addEventListener('change', function () {
+    var newFiles = Array.prototype.slice.call(docFile.files || []);
+    newFiles.forEach(function (f) {
+      var isDuplicate = stagedFiles.some(function (sf) {
+        return sf.name === f.name && sf.size === f.size && sf.lastModified === f.lastModified;
+      });
+      if (!isDuplicate) stagedFiles.push(f);
+    });
+    syncDocFileInput();
+    renderStagedFiles();
+  });
+
+  function showLogin(message) {
     loginWrap.style.display = 'block';
     appWrap.style.display = 'none';
+    if (message) {
+      loginError.textContent = message;
+      loginError.classList.add('show');
+    }
   }
 
   function showApp() {
@@ -778,6 +1063,9 @@
     roleBadge.className = 'role-badge';
     roleBadge.textContent = '';
     noRoleBanner.classList.remove('show');
+    currentRole = null;
+    staffBtn.style.display = 'none';
+    chainBtn.style.display = 'none';
 
     var userResult = await sb.auth.getUser();
     if (userResult.error || !userResult.data.user) return;
@@ -793,10 +1081,18 @@
       return;
     }
 
-    var label = profileResult.data.role === 'admin' ? 'Admin' : 'HR';
+    currentRole = profileResult.data.role;
+    var label = currentRole === 'admin' ? 'Admin' : 'HR';
     if (profileResult.data.full_name) label += ' · ' + profileResult.data.full_name;
     roleBadge.textContent = label;
     roleBadge.classList.add('show');
+
+    // Delete/replace/full-chain-audit are Admin-only — see supabase/migrations/007_admin_only_actions.sql
+    // for the real RLS boundary; this just keeps HR from seeing controls they can't use.
+    if (currentRole === 'admin') {
+      staffBtn.style.display = '';
+      chainBtn.style.display = '';
+    }
   }
 
   function escapeHtml(str) {
@@ -882,6 +1178,8 @@
       selectedDriverId = null;
       showEmptyDetail();
     }
+
+    refreshTimestamp.textContent = 'Ultima actualizare: ' + new Date().toLocaleTimeString('ro-RO');
   }
 
   function renderDriverList() {
@@ -929,6 +1227,9 @@
     var dr = driversCache.find(function (d) { return d.id === driverId; });
     if (!dr) { showEmptyDetail(); return; }
 
+    var isDriverSwitch = driverId !== lastDetailDriverId;
+    lastDetailDriverId = driverId;
+
     detailEmpty.style.display = 'none';
     detailContent.style.display = 'block';
     layoutEl.classList.add('mobile-detail');
@@ -973,7 +1274,8 @@
     linkResult.classList.remove('show');
     docType.value = '';
     docDate.value = todayStr();
-    docFile.value = '';
+    resetStagedFiles();
+    if (isDriverSwitch) uploadCollapsible.close();
   }
 
   backToListLink.addEventListener('click', function (e) {
@@ -1017,6 +1319,7 @@
       if (insertResult.error) throw insertResult.error;
       newDriverName.value = '';
       newDriverPhone.value = '';
+      driverAddCollapsible.close();
       await loadAll();
       selectDriver(insertResult.data.id);
     } catch (err) {
@@ -1148,10 +1451,15 @@
       setTimeout(function () { btn.textContent = 'Copiază linkul'; }, 1500);
     };
 
+    // Replace/delete are Admin-only (see supabase/migrations/007_admin_only_actions.sql) —
+    // hiding them for HR here is UX convenience, the RLS policy is the real boundary.
+    var isAdmin = currentRole === 'admin';
+
     var replaceStatus = document.getElementById('replaceFileStatus');
     replaceStatus.classList.remove('show');
     replaceStatus.textContent = '';
     var replaceBtn = document.getElementById('replaceFileBtn');
+    replaceBtn.style.display = isAdmin ? '' : 'none';
     replaceBtn.disabled = false;
     replaceBtn.textContent = 'Înlocuiește fișierul';
     var replaceInput = document.getElementById('pReplaceFileInput');
@@ -1164,6 +1472,7 @@
     };
 
     var deleteBtn = document.getElementById('deletePendingBtn');
+    deleteBtn.style.display = isAdmin ? '' : 'none';
     deleteBtn.disabled = false;
     deleteBtn.textContent = 'Șterge documentul';
     deleteBtn.onclick = function () { deletePendingDocument(doc, deleteBtn); };
@@ -1261,7 +1570,19 @@
   overlay.addEventListener('click', function (e) {
     if (e.target === overlay) closeModal();
   });
-  refreshBtn.addEventListener('click', loadAll);
+  refreshBtn.addEventListener('click', async function () {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Se actualizează…';
+    try {
+      await loadAll();
+      refreshBtn.textContent = '✓ Actualizat';
+    } catch (err) {
+      refreshBtn.textContent = 'Reîmprospătează';
+    } finally {
+      refreshBtn.disabled = false;
+      setTimeout(function () { refreshBtn.textContent = 'Reîmprospătează'; }, 1500);
+    }
+  });
 
   function bufferToHex(buffer) {
     var bytes = new Uint8Array(buffer);
@@ -1428,7 +1749,7 @@
 
       docType.value = '';
       docDate.value = todayStr();
-      docFile.value = '';
+      resetStagedFiles();
 
       await loadAll();
       if (driverId) selectDriver(driverId);
@@ -1496,6 +1817,144 @@
     } finally {
       chainBtn.disabled = false;
       chainBtn.textContent = 'Verifică lanțul complet';
+    }
+  });
+
+  // --- "Echipă" (staff) panel — Admin only, backed by api/staff.js (the one place
+  // that knows the Supabase service_role key; this client never sees it) ---
+  async function callStaffApi(action, payload) {
+    var body = Object.assign({ action: action }, payload || {});
+    var resp = await fetch('/api/staff', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (currentAccessToken || '')
+      },
+      body: JSON.stringify(body)
+    });
+    var json = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(json.error || ('Eroare server (' + resp.status + ')'));
+    return json;
+  }
+
+  function renderStaffList(staff) {
+    if (!staff || staff.length === 0) {
+      staffListEmpty.style.display = 'block';
+      staffListEmpty.textContent = 'Niciun coleg încă.';
+      staffListEl.innerHTML = '';
+      return;
+    }
+    staffListEmpty.style.display = 'none';
+    staffListEl.innerHTML = staff.map(function (s) {
+      var deactivatedClass = s.deactivated ? ' staff-deactivated' : '';
+      return '' +
+        '<div class="staff-row' + deactivatedClass + '">' +
+          '<div class="staff-row-main">' +
+            '<div class="staff-row-name">' + escapeHtml(s.full_name || s.email) + (s.deactivated ? ' <span class="staff-status-pill">Dezactivat</span>' : '') + '</div>' +
+            '<div class="staff-row-email">' + escapeHtml(s.email) + '</div>' +
+          '</div>' +
+          '<div class="staff-row-actions">' +
+            '<select class="staff-role-select" data-id="' + s.id + '"' + (s.deactivated ? ' disabled' : '') + '>' +
+              '<option value="hr"' + (s.role === 'hr' ? ' selected' : '') + '>HR</option>' +
+              '<option value="admin"' + (s.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
+            '</select>' +
+            (s.deactivated ? '' : '<button type="button" class="staff-deactivate-btn" data-id="' + s.id + '">Dezactivează</button>') +
+          '</div>' +
+        '</div>';
+    }).join('');
+
+    staffListEl.querySelectorAll('.staff-role-select').forEach(function (sel) {
+      sel.addEventListener('change', async function () {
+        var id = sel.getAttribute('data-id');
+        sel.disabled = true;
+        try {
+          await callStaffApi('updateRole', { id: id, role: sel.value });
+          await loadStaffList();
+        } catch (err) {
+          staffError.textContent = 'Eroare la schimbarea rolului: ' + err.message;
+          staffError.classList.add('show');
+          sel.disabled = false;
+        }
+      });
+    });
+
+    staffListEl.querySelectorAll('.staff-deactivate-btn').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var id = btn.getAttribute('data-id');
+        if (!confirm('Dezactivezi acest cont? Nu va mai putea autentifica, dar istoricul lui rămâne intact.')) return;
+        btn.disabled = true;
+        btn.textContent = 'Se dezactivează…';
+        try {
+          await callStaffApi('deactivate', { id: id });
+          await loadStaffList();
+        } catch (err) {
+          staffError.textContent = 'Eroare la dezactivare: ' + err.message;
+          staffError.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = 'Dezactivează';
+        }
+      });
+    });
+  }
+
+  async function loadStaffList() {
+    staffError.classList.remove('show');
+    staffListEmpty.style.display = 'block';
+    staffListEmpty.textContent = 'Se încarcă…';
+    try {
+      var result = await callStaffApi('list');
+      renderStaffList(result.staff || []);
+    } catch (err) {
+      staffListEmpty.textContent = '';
+      staffError.textContent = 'Eroare la încărcarea echipei: ' + err.message;
+      staffError.classList.add('show');
+    }
+  }
+
+  staffBtn.addEventListener('click', function () {
+    staffOverlay.classList.add('show');
+    loadStaffList();
+  });
+
+  closeStaffModalBtn.addEventListener('click', function () {
+    staffOverlay.classList.remove('show');
+  });
+  staffOverlay.addEventListener('click', function (e) {
+    if (e.target === staffOverlay) staffOverlay.classList.remove('show');
+  });
+
+  submitStaffBtn.addEventListener('click', async function () {
+    staffError.classList.remove('show');
+    var email = newStaffEmail.value.trim();
+    var fullName = newStaffName.value.trim();
+    var role = newStaffRole.value;
+    if (!email) {
+      staffError.textContent = 'Introduceți adresa de e-mail.';
+      staffError.classList.add('show');
+      return;
+    }
+    submitStaffBtn.disabled = true;
+    submitStaffBtn.textContent = 'Se trimite…';
+    try {
+      await callStaffApi('invite', { email: email, full_name: fullName || null, role: role });
+      newStaffEmail.value = '';
+      newStaffName.value = '';
+      newStaffRole.value = 'hr';
+      staffAddCollapsible.close();
+      await loadStaffList();
+    } catch (err) {
+      staffError.textContent = 'Eroare la trimiterea invitației: ' + err.message;
+      staffError.classList.add('show');
+    } finally {
+      submitStaffBtn.disabled = false;
+      submitStaffBtn.textContent = 'Trimite invitație';
+    }
+  });
+
+  sb.auth.onAuthStateChange(function (event, session) {
+    currentAccessToken = session ? session.access_token : null;
+    if (event === 'SIGNED_OUT') {
+      showLogin('Sesiunea a expirat — te rugăm să te reconectezi.');
     }
   });
 

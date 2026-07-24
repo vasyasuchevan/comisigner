@@ -13,16 +13,22 @@ Sistem demonstrativ (temă de interviu) pentru semnarea electronică a documente
 
 - **Frontend:** HTML/CSS/JS simplu, fără build step (fără React/Vite) — fiecare pagină e un singur fișier, ușor de deschis și testat direct.
 - **Backend/bază de date/storage:** [Supabase](https://supabase.com) (Postgres + Auth + Storage), plan gratuit.
-- **Hosting:** [Vercel](https://vercel.com), plan gratuit, deploy static, cu deploy automat din GitHub.
+- **Hosting:** [Vercel](https://vercel.com), plan gratuit, deploy static, cu deploy automat din GitHub. O singură excepție de la „doar pagini statice": `api/staff.js`, o Serverless Function minimală (fără dependențe npm, doar `fetch()` către Supabase) — vezi „Panoul Echipă" mai jos.
 - **Aplicație mobilă:** [Capacitor](https://capacitorjs.com) — `/driver/` împachetat ca APK Android nativ, testat pe dispozitive reale.
 - **Biblioteci:** [signature_pad](https://github.com/szimek/signature_pad) (semnătură desenată), `@supabase/supabase-js` (client), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (coduri QR pentru linkurile de document), [pdf.js](https://mozilla.github.io/pdf.js/) (randare PDF pe `<canvas>`), [Tesseract.js](https://github.com/naptha/tesseract.js) (OCR, pentru plasarea automată a semnăturii — vezi mai jos) și [pdf-lib](https://pdf-lib.js.org/) (compune imaginea semnăturii peste o copie a PDF-ului) — toate încărcate local (`vendor/`), niciuna prin CDN.
 
 ### Roluri și dosarul șoferului
 
-Personalul biroului are un rol — **Admin** (acces complet) sau **HR** (adaugă șoferi, adaugă documente, trimite linkuri) — atribuit manual printr-un rând în tabelul `profiles` (nu există o pagină de "creează cont" în aplicație, ca să nu fie nevoie de o cheie service_role; conturile Auth se creează din Supabase Dashboard). Fiecare **șofer** are un dosar de documente (acte necesare angajării sau reînnoirii — permis, certificat medical etc.), nu documente de transport. Biroul poate genera două tipuri de linkuri pentru un șofer, ambele **valabile 24h**:
+Personalul biroului are un rol — **Admin** sau **HR** — cu drepturi diferite, aplicate real (nu doar afișate): **HR** poate adăuga șoferi, încărca documente și genera/trimite linkuri; **ștergerea unui document, înlocuirea fișierului lui, verificarea completă a lanțului de audit, și panoul „Echipă"** (mai jos) sunt exclusiv pentru **Admin** — impus atât în interfață cât și prin politici RLS (`supabase/migrations/007_admin_only_actions.sql`), ca un HR să nu poată face aceste acțiuni nici măcar apelând direct API-ul din afara interfeței. Fiecare **șofer** are un dosar de documente (acte necesare angajării sau reînnoirii — permis, certificat medical etc.), nu documente de transport. Biroul poate genera două tipuri de linkuri pentru un șofer, ambele **valabile 24h**:
 
 - link către **un singur document** din dosar;
 - link către **tot dosarul** — șoferul vede toate documentele unul după altul și le semnează pe toate **cu o singură semnătură** (fiecare document primește totuși propria înregistrare în jurnalul de audit, vezi mai jos).
+
+### Panoul „Echipă" (gestionare cont personal, doar Admin)
+
+Un Admin poate deschide „Echipă" din bara de sus și, direct din interfață: să invite un coleg nou pe e-mail (colegul își setează singur parola din emailul de invitație — nimeni nu inventează o parolă temporară pentru el), să îi atribuie rolul (Admin/HR), să schimbe rolul cuiva existent, sau să dezactiveze un cont (blochează autentificarea, dar păstrează tot istoricul lui — șoferi/documente create rămân intacte). Înainte, toate astea se făceau manual din Supabase Dashboard (Authentication → Users + Table Editor → profiles).
+
+Tehnic, asta a cerut o singură excepție de la arhitectura „doar pagini statice, fără service_role key": `api/staff.js`, o Serverless Function pe Vercel care e singurul loc din tot proiectul care cunoaște cheia `service_role` (necesară pentru API-ul de administrare Supabase Auth — crearea/dezactivarea unui login nu se poate face prin RLS, indiferent de politici). Cheia stă doar ca variabilă de mediu în Vercel (`SUPABASE_SERVICE_ROLE_KEY`), niciodată în cod. La fiecare cerere, funcția verifică din nou — independent de ce arată interfața — că cel care a apelat-o e autentificat și are `role = 'admin'`, înainte de a face orice; asta e granița reală de securitate, nu butonul ascuns pentru HR în `/office/`.
 
 ### Flux principal
 
@@ -93,6 +99,7 @@ Conform eIDAS (Regulamentul UE 910/2014), există trei niveluri de semnătură e
 /driver/            — aplicația șoferului (PWA + sursă pentru build-ul Android)
 /office/            — panoul biroului (autentificare Supabase, upload documente, verificare)
 /verify/            — verificare publică a unei semnături, fără autentificare
+/api/staff.js       — singura Serverless Function din proiect, pentru panoul „Echipă" (vezi mai sus)
 /mobile/            — proiect Capacitor pentru build-ul Android nativ (APK)
 ```
 
@@ -127,3 +134,5 @@ Rezultat: `mobile/android/app/build/outputs/apk/release/app-release.apk`, semnat
 Fiecare pagină e un fișier HTML de sine stătător, cu biblioteci încărcate local (`vendor/`) — se poate deschide direct în browser sau servi static. Cheia Supabase folosită în cod e cheia publică ("publishable"/anon) — protejată prin Row Level Security pe server, nu printr-un secret ascuns în client.
 
 Controlul de versiuni se face prin Git, cu istoricul complet pe GitHub. Vercel e conectat direct la repository — orice `push` pe `main` pornește automat un build și un deploy nou în producție, fără pași manuali.
+
+Excepție: panoul „Echipă" (`/api/staff.js`) are nevoie de o variabilă de mediu setată manual în Vercel → Project Settings → Environment Variables — `SUPABASE_SERVICE_ROLE_KEY`, luată din Supabase Dashboard → Settings → API → `service_role` secret. Fără ea, funcția răspunde cu o eroare clară în loc să eșueze silențios; restul aplicației funcționează normal chiar dacă această variabilă lipsește.

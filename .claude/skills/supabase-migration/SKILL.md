@@ -5,7 +5,7 @@ description: Write and hand off a Supabase SQL migration for the ComiSigner proj
 
 # ComiSigner Supabase migrations
 
-This project's Supabase database is only reachable from application code through the anon (publishable) key — there is no service_role key available, and that's a deliberate boundary, never ask the user for it. Any schema change — new table, column, RLS policy, trigger, or RPC function — has to be written as plain SQL and handed to the user to run themselves in the Supabase SQL Editor (which runs as the postgres role and bypasses RLS).
+This project's Supabase database is reachable from application code only through the anon (publishable) key — with one deliberate, narrow exception: `api/staff.js`, a single Vercel Serverless Function that holds the service_role key (as a Vercel environment variable, never in the repo/client) to manage office staff accounts (invite/role/deactivate) via Supabase's Admin API, since that requires admin rights no RLS policy can grant. Every other page and every other feature still goes through the anon key + RLS — don't reach for service_role or a new serverless function for anything else without explicit confirmation this is really needed; RLS is still the default and correct tool. Any schema change — new table, column, RLS policy, trigger, or RPC function — has to be written as plain SQL and handed to the user to run themselves in the Supabase SQL Editor (which runs as the postgres role and bypasses RLS).
 
 ## What to always do
 
@@ -19,3 +19,5 @@ This project's Supabase database is only reachable from application code through
 ## Now that roles are being added (admin / HR / driver)
 
 Design RLS per-role from the start rather than retrofitting: decide exactly what HR can and can't touch versus admin before writing the policy, not after. The interesting bugs in a role-based system are usually permission leaks (a narrower role can do something it shouldn't), not permission blocks — so when reviewing a new policy, actively try to think of what the *weakest* role could get away with.
+
+As of `007_admin_only_actions.sql`, the actual split is: HR can create (drivers, documents, links); Admin-only covers deleting/replacing a document and the full audit-chain check. Match new policies to this same split unless the user says otherwise.
