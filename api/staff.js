@@ -129,7 +129,13 @@ module.exports = async function handler(req, res) {
         }
       );
       const inviteJson = await inviteResp.json();
-      if (!inviteResp.ok) throw new Error(inviteJson.msg || inviteJson.error_description || 'Nu s-a putut trimite invitația.');
+      if (!inviteResp.ok) {
+        const rawMsg = inviteJson.msg || inviteJson.error_description || '';
+        if (/already.*registered/i.test(rawMsg)) {
+          throw new Error('Există deja un cont cu acest e-mail — dacă a fost dezactivat, îl găsești în „Foști colegi" mai jos și îl poți reactiva de acolo, în loc să trimiți o invitație nouă.');
+        }
+        throw new Error(rawMsg || 'Nu s-a putut trimite invitația.');
+      }
 
       const newUserId = inviteJson.id;
       const profileInsertResp = await fetch(SUPABASE_URL + '/rest/v1/profiles', {
@@ -170,13 +176,28 @@ module.exports = async function handler(req, res) {
       }
 
       // ban_duration is a duration string, not a date — this bans for ~100 years,
-      // effectively permanent but reversible (re-invite/PATCH ban_duration:'none' later).
+      // effectively permanent but reversible via the "reactivate" action below.
       const banResp = await fetch(SUPABASE_URL + '/auth/v1/admin/users/' + encodeURIComponent(deactivateId), {
         method: 'PUT',
         headers: adminHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ban_duration: '876000h' })
       });
       if (!banResp.ok) throw new Error('Nu s-a putut dezactiva contul.');
+
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    if (action === 'reactivate') {
+      const reactivateId = body.id;
+      if (!reactivateId) { res.status(400).json({ error: 'Lipsește id-ul.' }); return; }
+
+      const unbanResp = await fetch(SUPABASE_URL + '/auth/v1/admin/users/' + encodeURIComponent(reactivateId), {
+        method: 'PUT',
+        headers: adminHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ ban_duration: 'none' })
+      });
+      if (!unbanResp.ok) throw new Error('Nu s-a putut reactiva contul.');
 
       res.status(200).json({ ok: true });
       return;

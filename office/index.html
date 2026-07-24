@@ -633,6 +633,8 @@
   }
   .staff-deactivate-btn { background: var(--danger-bg); color: var(--danger); padding: 6px 10px; font-size: 12.5px; }
   .staff-deactivate-btn:hover { background: var(--danger-border); }
+  .staff-reactivate-btn { background: var(--success-bg); color: var(--success); padding: 6px 10px; font-size: 12.5px; }
+  .staff-reactivate-btn:hover { background: var(--success-border); }
   .staff-deactivated { opacity: 0.55; }
   .staff-status-pill {
     font-size: 11px;
@@ -890,6 +892,15 @@
 
     <div class="state-msg" id="staffListEmpty" style="display:none;">Se încarcă…</div>
     <div id="staffListEl"></div>
+
+    <div id="staffArchiveSection" style="display:none; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border);">
+      <button type="button" class="collapsible-toggle detail-subhead" id="staffArchiveToggle" aria-expanded="false" aria-controls="staffArchiveBody">
+        <span class="collapsible-icon">+</span> <span id="staffArchiveLabel">Foști colegi</span>
+      </button>
+      <div class="collapsible-body" id="staffArchiveBody">
+        <div id="staffArchiveList"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -925,6 +936,9 @@
   var submitStaffBtn = document.getElementById('submitStaffBtn');
   var staffListEmpty = document.getElementById('staffListEmpty');
   var staffListEl = document.getElementById('staffListEl');
+  var staffArchiveSection = document.getElementById('staffArchiveSection');
+  var staffArchiveLabel = document.getElementById('staffArchiveLabel');
+  var staffArchiveList = document.getElementById('staffArchiveList');
   var currentRole = null;
   var currentAccessToken = null;
 
@@ -1015,6 +1029,7 @@
   var uploadCollapsible = initCollapsible(document.getElementById('uploadToggle'), document.getElementById('uploadBody'), false);
   var driverAddCollapsible = initCollapsible(document.getElementById('addDriverToggle'), document.getElementById('addDriverBody'), false);
   var staffAddCollapsible = initCollapsible(document.getElementById('addStaffToggle'), document.getElementById('addStaffBody'), false);
+  var staffArchiveCollapsible = initCollapsible(document.getElementById('staffArchiveToggle'), document.getElementById('staffArchiveBody'), false);
 
   // --- staged multi-file picker: docFile stays the source of truth via DataTransfer ---
   var stagedFilesList = document.getElementById('stagedFilesList');
@@ -1913,60 +1928,102 @@
   }
 
   function renderStaffList(staff) {
-    if (!staff || staff.length === 0) {
+    staff = staff || [];
+    var active = staff.filter(function (s) { return !s.deactivated; });
+    var archived = staff.filter(function (s) { return s.deactivated; });
+
+    if (active.length === 0) {
       staffListEmpty.style.display = 'block';
-      staffListEmpty.textContent = 'Niciun coleg încă.';
+      staffListEmpty.textContent = 'Niciun coleg activ încă.';
       staffListEl.innerHTML = '';
+    } else {
+      staffListEmpty.style.display = 'none';
+      staffListEl.innerHTML = active.map(function (s) {
+        return '' +
+          '<div class="staff-row">' +
+            '<div class="staff-row-main">' +
+              '<div class="staff-row-name">' + escapeHtml(s.full_name || s.email) + '</div>' +
+              '<div class="staff-row-email">' + escapeHtml(s.email) + '</div>' +
+            '</div>' +
+            '<div class="staff-row-actions">' +
+              '<select class="staff-role-select" data-id="' + s.id + '">' +
+                '<option value="hr"' + (s.role === 'hr' ? ' selected' : '') + '>HR</option>' +
+                '<option value="admin"' + (s.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
+              '</select>' +
+              '<button type="button" class="staff-deactivate-btn" data-id="' + s.id + '">Dezactivează</button>' +
+            '</div>' +
+          '</div>';
+      }).join('');
+
+      staffListEl.querySelectorAll('.staff-role-select').forEach(function (sel) {
+        sel.addEventListener('change', async function () {
+          var id = sel.getAttribute('data-id');
+          sel.disabled = true;
+          try {
+            await callStaffApi('updateRole', { id: id, role: sel.value });
+            await loadStaffList();
+          } catch (err) {
+            staffError.textContent = 'Eroare la schimbarea rolului: ' + err.message;
+            staffError.classList.add('show');
+            sel.disabled = false;
+          }
+        });
+      });
+
+      staffListEl.querySelectorAll('.staff-deactivate-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var id = btn.getAttribute('data-id');
+          if (!confirm('Dezactivezi acest cont? Nu va mai putea autentifica, dar istoricul lui rămâne intact. Poți oricând să îl reactivezi din „Foști colegi".')) return;
+          btn.disabled = true;
+          btn.textContent = 'Se dezactivează…';
+          try {
+            await callStaffApi('deactivate', { id: id });
+            await loadStaffList();
+          } catch (err) {
+            staffError.textContent = 'Eroare la dezactivare: ' + err.message;
+            staffError.classList.add('show');
+            btn.disabled = false;
+            btn.textContent = 'Dezactivează';
+          }
+        });
+      });
+    }
+
+    if (archived.length === 0) {
+      staffArchiveSection.style.display = 'none';
+      staffArchiveList.innerHTML = '';
       return;
     }
-    staffListEmpty.style.display = 'none';
-    staffListEl.innerHTML = staff.map(function (s) {
-      var deactivatedClass = s.deactivated ? ' staff-deactivated' : '';
+
+    staffArchiveSection.style.display = 'block';
+    staffArchiveLabel.textContent = 'Foști colegi (' + archived.length + ')';
+    staffArchiveList.innerHTML = archived.map(function (s) {
       return '' +
-        '<div class="staff-row' + deactivatedClass + '">' +
+        '<div class="staff-row staff-deactivated">' +
           '<div class="staff-row-main">' +
-            '<div class="staff-row-name">' + escapeHtml(s.full_name || s.email) + (s.deactivated ? ' <span class="staff-status-pill">Dezactivat</span>' : '') + '</div>' +
+            '<div class="staff-row-name">' + escapeHtml(s.full_name || s.email) + '</div>' +
             '<div class="staff-row-email">' + escapeHtml(s.email) + '</div>' +
           '</div>' +
           '<div class="staff-row-actions">' +
-            '<select class="staff-role-select" data-id="' + s.id + '"' + (s.deactivated ? ' disabled' : '') + '>' +
-              '<option value="hr"' + (s.role === 'hr' ? ' selected' : '') + '>HR</option>' +
-              '<option value="admin"' + (s.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
-            '</select>' +
-            (s.deactivated ? '' : '<button type="button" class="staff-deactivate-btn" data-id="' + s.id + '">Dezactivează</button>') +
+            '<span class="staff-status-pill">' + (s.role === 'admin' ? 'Admin' : 'HR') + '</span>' +
+            '<button type="button" class="staff-reactivate-btn" data-id="' + s.id + '">Reactivează</button>' +
           '</div>' +
         '</div>';
     }).join('');
 
-    staffListEl.querySelectorAll('.staff-role-select').forEach(function (sel) {
-      sel.addEventListener('change', async function () {
-        var id = sel.getAttribute('data-id');
-        sel.disabled = true;
-        try {
-          await callStaffApi('updateRole', { id: id, role: sel.value });
-          await loadStaffList();
-        } catch (err) {
-          staffError.textContent = 'Eroare la schimbarea rolului: ' + err.message;
-          staffError.classList.add('show');
-          sel.disabled = false;
-        }
-      });
-    });
-
-    staffListEl.querySelectorAll('.staff-deactivate-btn').forEach(function (btn) {
+    staffArchiveList.querySelectorAll('.staff-reactivate-btn').forEach(function (btn) {
       btn.addEventListener('click', async function () {
         var id = btn.getAttribute('data-id');
-        if (!confirm('Dezactivezi acest cont? Nu va mai putea autentifica, dar istoricul lui rămâne intact.')) return;
         btn.disabled = true;
-        btn.textContent = 'Se dezactivează…';
+        btn.textContent = 'Se reactivează…';
         try {
-          await callStaffApi('deactivate', { id: id });
+          await callStaffApi('reactivate', { id: id });
           await loadStaffList();
         } catch (err) {
-          staffError.textContent = 'Eroare la dezactivare: ' + err.message;
+          staffError.textContent = 'Eroare la reactivare: ' + err.message;
           staffError.classList.add('show');
           btn.disabled = false;
-          btn.textContent = 'Dezactivează';
+          btn.textContent = 'Reactivează';
         }
       });
     });
