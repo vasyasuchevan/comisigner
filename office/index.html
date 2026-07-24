@@ -631,6 +631,8 @@
     font-family: inherit;
     font-size: 13px;
   }
+  .staff-resend-btn { background: #fff; color: var(--ink); border: 1px solid var(--border); padding: 6px 10px; font-size: 12.5px; }
+  .staff-resend-btn:hover:not(:disabled) { background: var(--bg-alt); }
   .staff-deactivate-btn { background: var(--danger-bg); color: var(--danger); padding: 6px 10px; font-size: 12.5px; }
   .staff-deactivate-btn:hover { background: var(--danger-border); }
   .staff-reactivate-btn { background: var(--success-bg); color: var(--success); padding: 6px 10px; font-size: 12.5px; }
@@ -1950,10 +1952,33 @@
                 '<option value="hr"' + (s.role === 'hr' ? ' selected' : '') + '>HR</option>' +
                 '<option value="admin"' + (s.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
               '</select>' +
+              '<button type="button" class="staff-resend-btn" data-id="' + s.id + '" data-email="' + escapeHtml(s.email) + '">Retrimite email de acces</button>' +
               '<button type="button" class="staff-deactivate-btn" data-id="' + s.id + '">Dezactivează</button>' +
             '</div>' +
           '</div>';
       }).join('');
+
+      staffListEl.querySelectorAll('.staff-resend-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var id = btn.getAttribute('data-id');
+          var email = btn.getAttribute('data-email');
+          btn.disabled = true;
+          btn.textContent = 'Se trimite…';
+          try {
+            await callStaffApi('resendAccess', { id: id, email: email });
+            btn.textContent = '✓ Trimis';
+            setTimeout(function () {
+              btn.disabled = false;
+              btn.textContent = 'Retrimite email de acces';
+            }, 2000);
+          } catch (err) {
+            staffError.textContent = 'Eroare la retrimitere: ' + err.message;
+            staffError.classList.add('show');
+            btn.disabled = false;
+            btn.textContent = 'Retrimite email de acces';
+          }
+        });
+      });
 
       staffListEl.querySelectorAll('.staff-role-select').forEach(function (sel) {
         sel.addEventListener('change', async function () {

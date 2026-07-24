@@ -203,6 +203,32 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (action === 'resendAccess') {
+      // For someone who never finished setting a password (e.g. their invite
+      // link broke or expired) — this is Supabase's own "forgot password" flow,
+      // triggered by an admin instead of the person themselves. It sends a
+      // recovery email; the link lands on the same "set password" screen the
+      // invite flow uses (office/index.html detects type=recovery in the hash).
+      const email = body.email;
+      if (!email) { res.status(400).json({ error: 'Lipsește adresa de e-mail.' }); return; }
+
+      const recoverResp = await fetch(
+        SUPABASE_URL + '/auth/v1/recover?redirect_to=' + encodeURIComponent(SITE_URL + '/office/'),
+        {
+          method: 'POST',
+          headers: adminHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ email: email })
+        }
+      );
+      if (!recoverResp.ok) {
+        const errJson = await recoverResp.json().catch(function () { return {}; });
+        throw new Error(errJson.msg || errJson.error_description || 'Nu s-a putut retrimite email-ul.');
+      }
+
+      res.status(200).json({ ok: true });
+      return;
+    }
+
     res.status(400).json({ error: 'Acțiune necunoscută.' });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Eroare necunoscută.' });
