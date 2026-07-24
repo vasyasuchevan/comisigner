@@ -693,7 +693,11 @@
   // 'подпис' covers Russian (подпись); Ukrainian spells the same word with a different
   // letter (підпис, not "подпис") so it needs its own stem — a Cyrillic substring match
   // against the wrong language's spelling would just never fire.
-  var SIGNATURE_KEYWORD_STEMS_STRONG = ['semnatur', 'signatur', 'подпис', 'підпис'];
+  // 'podpis' (Polish) and 'unterschrift' (German) are plain Latin words the existing
+  // ron+eng OCR models can already read reasonably well — no extra language pack needed
+  // to cover them. 'firma' (IT/ES/PT "signature") relies on startsWithStem() above to
+  // avoid matching "confirma"/"confirmă".
+  var SIGNATURE_KEYWORD_STEMS_STRONG = ['semnatur', 'signatur', 'подпис', 'підпис', 'podpis', 'unterschrift', 'firma'];
   var SIGNATURE_KEYWORD_STEMS_WEAK = ['subsemnat', 'subscris', 'нижеподписав', 'нижчепідписан'];
 
   function stripDiacritics(s) {
@@ -705,13 +709,21 @@
       .replace(/[ț]/g, 't');
   }
 
+  // Matches at the START of the word only (covers inflected endings like
+  // semnătura/semnăturii/подписью), not anywhere inside it — a plain substring search
+  // would let a short stem like "firma" (IT/ES "signature") false-positive on an unrelated
+  // word like "confirma"/"confirmă", which shows up in ordinary disclaimer sentences.
+  function startsWithStem(word, stem) {
+    return word.length >= stem.length && word.slice(0, stem.length) === stem;
+  }
+
   function signatureKeywordTier(text) {
     var norm = stripDiacritics(text);
     for (var i = 0; i < SIGNATURE_KEYWORD_STEMS_STRONG.length; i++) {
-      if (norm.indexOf(SIGNATURE_KEYWORD_STEMS_STRONG[i]) !== -1) return 2;
+      if (startsWithStem(norm, SIGNATURE_KEYWORD_STEMS_STRONG[i])) return 2;
     }
     for (var j = 0; j < SIGNATURE_KEYWORD_STEMS_WEAK.length; j++) {
-      if (norm.indexOf(SIGNATURE_KEYWORD_STEMS_WEAK[j]) !== -1) return 1;
+      if (startsWithStem(norm, SIGNATURE_KEYWORD_STEMS_WEAK[j])) return 1;
     }
     return 0;
   }
