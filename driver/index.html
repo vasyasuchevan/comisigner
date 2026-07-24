@@ -412,6 +412,20 @@
   <button id="stateBackBtn" type="button">Înapoi la pagina principală</button>
 </div>
 
+<script>
+  // Runs immediately (before the heavy vendor scripts below load/parse) so a
+  // driver opening a real ?id=/?dossier= link never sees the branded welcome
+  // screen flash before their document — only someone landing on a bare
+  // /driver/ (e.g. to paste a code manually) sees the welcome view at all.
+  (function () {
+    var params = new URLSearchParams(location.search);
+    if (params.get('id') || params.get('dossier')) {
+      document.getElementById('welcomeView').style.display = 'none';
+      document.getElementById('stateMsg').style.display = 'block';
+    }
+  })();
+</script>
+
 <div class="card" id="docCard" style="display:none;">
   <a class="home-link" href="#" id="docBackLink" style="margin-top:0; margin-bottom:14px;">← Înapoi la pagina principală</a>
   <h1>Document de semnat</h1>

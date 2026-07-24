@@ -27,6 +27,13 @@
     --radius-lg: 20px;
     --radius-md: 12px;
     --radius-sm: 8px;
+    /* spacing scale, each step ~x1.6 (golden ratio) rounded to clean pixel values */
+    --space-1: 4px;
+    --space-2: 6px;
+    --space-3: 10px;
+    --space-4: 16px;
+    --space-5: 26px;
+    --space-6: 42px;
     --shadow-card: 0 6px 20px rgba(2,6,23,0.05);
     --shadow-modal: 0 24px 64px rgba(2,6,23,0.20);
     --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -500,20 +507,27 @@
   }
   .replace-file-status.show { display: block; }
 
-  /* --- progressive disclosure: collapsible sections, opened via a "+" toggle --- */
-  .collapsible-toggle {
+  /* --- progressive disclosure: collapsible sections, opened via a "+" toggle ---
+     .collapsible-toggle / .panel-head are the same control at two widths: a full
+     row (icon + label together, e.g. "+ Adaugă document(e)") vs a split header
+     (title on the left, icon on the right, e.g. "Șoferi" ... "+"). Both always
+     use the same .collapsible-icon so every "+" toggle in the app looks and
+     behaves identically — no more one-off margins or inconsistent click targets. */
+  .collapsible-toggle,
+  .panel-head {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-3);
     width: 100%;
     background: none;
     border: none;
     padding: 0;
+    margin: 0;
     cursor: pointer;
     text-align: left;
   }
-  .collapsible-icon,
-  .icon-toggle-btn {
+  .panel-head { justify-content: space-between; margin-bottom: var(--space-3); }
+  .collapsible-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -530,9 +544,19 @@
     padding: 0;
     transition: transform 0.15s ease, background 0.15s ease;
   }
-  .icon-toggle-btn:hover { background: var(--border); }
+  .collapsible-toggle:hover .collapsible-icon,
+  .panel-head:hover .collapsible-icon { background: var(--border); }
   .collapsible-toggle[aria-expanded="true"] .collapsible-icon,
-  .icon-toggle-btn[aria-expanded="true"] { transform: rotate(45deg); background: var(--border); }
+  .panel-head[aria-expanded="true"] .collapsible-icon,
+  .collapsible-icon[aria-expanded="true"] { transform: rotate(45deg); background: var(--border); }
+  .panel-head-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+  .panel-head-title.small {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted-soft);
+  }
   .collapsible-body {
     overflow: hidden;
     max-height: 0;
@@ -542,7 +566,7 @@
   .collapsible-body.open {
     max-height: 2000px;
     opacity: 1;
-    margin-top: 12px;
+    margin-top: var(--space-4);
   }
 
   /* --- custom file picker for document upload --- */
@@ -572,6 +596,49 @@
   }
   .file-picker-btn:hover { background: var(--bg-alt); border-color: var(--accent-indigo); }
   .file-picker-btn:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
+  .file-drop-zone {
+    border: 1px dashed transparent;
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    margin: calc(var(--space-2) * -1);
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .file-drop-zone.drag-over {
+    background: #eef2ff;
+    border-color: var(--accent-indigo);
+  }
+
+  /* --- search inputs (driver list / document list) --- */
+  .search-input {
+    display: block;
+    width: 100%;
+    padding: var(--space-3) 11px;
+    font-size: 13.5px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    margin-bottom: var(--space-3);
+  }
+  .search-input:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
+
+  /* --- stats strip under the top bar --- */
+  .stats-strip {
+    display: flex;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .stats-strip:empty { display: none; }
+  .stat-item b { color: var(--ink); font-weight: 700; }
+  .stat-item.warn { color: var(--warn); }
+  .stat-item.warn b { color: var(--warn); }
   .staged-files-list { margin-top: 10px; }
   .staged-file-row {
     display: flex;
@@ -611,13 +678,12 @@
   .refresh-timestamp { font-size: 12px; color: var(--muted-soft); margin-top: 2px; }
 
   /* --- staff ("Echipă") panel --- */
+  .staff-row-wrap { border-bottom: 1px solid var(--border); padding: var(--space-2) 6px; }
   .staff-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 10px 6px;
-    border-bottom: 1px solid var(--border);
+    gap: var(--space-3);
     flex-wrap: wrap;
   }
   .staff-row-main { min-width: 0; }
@@ -709,16 +775,18 @@
     </div>
   </div>
 
+  <div class="stats-strip" id="statsStrip"></div>
+
   <div class="no-role-banner" id="noRoleBanner">Contul dvs. este autentificat, dar nu are un rol atribuit (admin/hr) — cereți administratorului să vă adauge un rând în tabelul <code>profiles</code>. Până atunci, adăugarea de șoferi/documente/linkuri nu va funcționa.</div>
 
   <div class="chain-result" id="chainResult"></div>
 
   <div class="layout" id="layoutEl">
     <aside class="driver-panel card" id="driverPanel">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin:0 0 10px;">
-        <h2 style="margin:0;">Șoferi</h2>
-        <button type="button" class="icon-toggle-btn" id="addDriverToggle" aria-expanded="false" aria-controls="addDriverBody" aria-label="Adaugă șofer nou" title="Adaugă șofer nou">+</button>
-      </div>
+      <button type="button" class="panel-head" id="addDriverToggle" aria-expanded="false" aria-controls="addDriverBody">
+        <span class="panel-head-title">Șoferi</span>
+        <span class="collapsible-icon" aria-hidden="true">+</span>
+      </button>
       <div class="collapsible-body" id="addDriverBody">
         <div class="new-driver-row">
           <input type="text" id="newDriverName" placeholder="Nume șofer nou">
@@ -727,6 +795,7 @@
         <input type="text" id="newDriverPhone" placeholder="Telefon (opțional)">
         <div class="upload-error" id="driverError"></div>
       </div>
+      <input type="text" id="driverSearchInput" class="search-input" placeholder="🔍 Caută șofer (nume sau telefon)">
       <div id="driverListEl" class="driver-list"></div>
     </aside>
 
@@ -750,8 +819,10 @@
         </div>
 
         <h3 class="detail-subhead">Documente (<span id="detailDocCount">0</span>)</h3>
+        <input type="text" id="docSearchInput" class="search-input" placeholder="🔍 Caută document (titlu, tip sau dată)">
         <div class="doc-list" id="detailDocsList"></div>
         <div class="state-msg" id="detailDocsEmpty" style="display:none;">Niciun document încă pentru acest șofer.</div>
+        <div class="state-msg" id="detailDocsNoMatch" style="display:none;">Niciun document nu corespunde căutării.</div>
 
         <div class="upload-inline">
           <button type="button" class="collapsible-toggle detail-subhead" id="uploadToggle" aria-expanded="false" aria-controls="uploadBody">
@@ -767,10 +838,12 @@
               <input type="date" id="docDate" class="date-input">
             </div>
             <div class="upload-field">
-              <label id="docFileLabel">Fișiere (PDF sau imagine — poți selecta mai multe deodată; titlul fiecărui document se ia din numele fișierului)</label>
-              <label class="file-picker-btn" for="docFile">📎 Alege fișiere…</label>
-              <input type="file" id="docFile" accept="application/pdf,image/*" multiple class="visually-hidden" aria-describedby="docFileLabel">
-              <div id="stagedFilesList" class="staged-files-list"></div>
+              <label id="docFileLabel">Fișiere (PDF sau imagine — poți selecta mai multe deodată, sau le poți trage direct aici; titlul fiecărui document se ia din numele fișierului)</label>
+              <div class="file-drop-zone" id="fileDropZone">
+                <label class="file-picker-btn" for="docFile">📎 Alege fișiere…</label>
+                <input type="file" id="docFile" accept="application/pdf,image/*" multiple class="visually-hidden" aria-describedby="docFileLabel">
+                <div id="stagedFilesList" class="staged-files-list"></div>
+              </div>
             </div>
             <button id="submitDocBtn" type="button">Încarcă și generează link</button>
             <div class="upload-error" id="uploadError"></div>
@@ -810,27 +883,33 @@
       <div class="field">
         <label>Semnătura colectată la semnare</label>
         <img class="sig-img" id="mSigImg" alt="semnătură">
-        <div class="hint" style="font-size:12px; color:#888; margin-top:4px;">Documentul de mai sus e o copie cu semnătura compusă vizual peste el, generată la semnare. Hash-ul de mai jos se calculează însă mereu pe fișierul original, nemodificat — nu pe această copie — ca să rămână o dovadă independentă de modul de afișare.</div>
       </div>
-      <div class="field">
-        <label>ID document</label>
-        <div class="value" id="mDocId"></div>
-      </div>
-      <div class="field">
-        <label>Data/ora semnării (ISO 8601)</label>
-        <div class="value" id="mSignedAt"></div>
-      </div>
-      <div class="field">
-        <label>ID dispozitiv</label>
-        <div class="value mono" id="mDevice"></div>
-      </div>
-      <div class="field">
-        <label>Hash SHA-256</label>
-        <div class="value mono" id="mHash"></div>
-      </div>
-      <div class="field">
-        <label>Conținutul documentului la momentul semnării</label>
-        <div class="doc-content" id="mDocContent"></div>
+
+      <button type="button" class="collapsible-toggle detail-subhead" id="auditToggle" aria-expanded="false" aria-controls="auditBody">
+        <span class="collapsible-icon">+</span> Detalii audit
+      </button>
+      <div class="collapsible-body" id="auditBody">
+        <div class="hint" style="font-size:12px; color:#888; margin-bottom:10px;">Documentul de mai sus e o copie cu semnătura compusă vizual peste el, generată la semnare. Hash-ul de mai jos se calculează însă mereu pe fișierul original, nemodificat — nu pe această copie — ca să rămână o dovadă independentă de modul de afișare.</div>
+        <div class="field">
+          <label>ID document</label>
+          <div class="value" id="mDocId"></div>
+        </div>
+        <div class="field">
+          <label>Data/ora semnării (ISO 8601)</label>
+          <div class="value" id="mSignedAt"></div>
+        </div>
+        <div class="field">
+          <label>ID dispozitiv</label>
+          <div class="value mono" id="mDevice"></div>
+        </div>
+        <div class="field">
+          <label>Hash SHA-256</label>
+          <div class="value mono" id="mHash"></div>
+        </div>
+        <div class="field">
+          <label>Conținutul documentului la momentul semnării</label>
+          <div class="doc-content" id="mDocContent"></div>
+        </div>
       </div>
 
       <button id="verifyBtn" type="button">Verifică integritatea</button>
@@ -851,11 +930,16 @@
       <div class="qr-wrap" id="pQr"></div>
       <button id="copyPendingLinkBtn" type="button">Copiază linkul</button>
 
-      <input type="file" id="pReplaceFileInput" accept="application/pdf,image/*" style="display:none;">
-      <button id="replaceFileBtn" type="button" class="replace-file-btn">Înlocuiește fișierul</button>
-      <div class="replace-file-status" id="replaceFileStatus"></div>
+      <button type="button" class="collapsible-toggle detail-subhead" id="pendingActionsToggle" aria-expanded="false" aria-controls="pendingActionsBody" style="margin-top:var(--space-4);">
+        <span class="collapsible-icon">+</span> Alte acțiuni
+      </button>
+      <div class="collapsible-body" id="pendingActionsBody">
+        <input type="file" id="pReplaceFileInput" accept="application/pdf,image/*" style="display:none;">
+        <button id="replaceFileBtn" type="button" class="replace-file-btn">Înlocuiește fișierul</button>
+        <div class="replace-file-status" id="replaceFileStatus"></div>
 
-      <button id="deletePendingBtn" type="button" style="background:var(--danger-bg); color:var(--danger); margin-top:10px; width:100%;">Șterge documentul</button>
+        <button id="deletePendingBtn" type="button" style="background:var(--danger-bg); color:var(--danger); margin-top:10px; width:100%;">Șterge documentul</button>
+      </div>
     </div>
   </div>
 </div>
@@ -869,10 +953,10 @@
 
     <div class="upload-error" id="staffError"></div>
 
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <h3 class="detail-subhead" style="margin:0;">Colegi</h3>
-      <button type="button" class="icon-toggle-btn" id="addStaffToggle" aria-expanded="false" aria-controls="addStaffBody" aria-label="Adaugă coleg" title="Adaugă coleg">+</button>
-    </div>
+    <button type="button" class="panel-head" id="addStaffToggle" aria-expanded="false" aria-controls="addStaffBody">
+      <span class="panel-head-title small">Colegi</span>
+      <span class="collapsible-icon" aria-hidden="true">+</span>
+    </button>
     <div class="collapsible-body" id="addStaffBody">
       <div class="upload-field">
         <label for="newStaffEmail">E-mail</label>
@@ -918,6 +1002,7 @@
 <script>
 (function () {
   var topSubtitle = document.getElementById('topSubtitle');
+  var statsStrip = document.getElementById('statsStrip');
   var refreshBtn = document.getElementById('refreshBtn');
   var refreshTimestamp = document.getElementById('refreshTimestamp');
   var logoutBtn = document.getElementById('logoutBtn');
@@ -967,6 +1052,7 @@
   var submitDriverBtn = document.getElementById('submitDriverBtn');
   var driverError = document.getElementById('driverError');
   var driverListEl = document.getElementById('driverListEl');
+  var driverSearchInput = document.getElementById('driverSearchInput');
 
   var detailEmpty = document.getElementById('detailEmpty');
   var detailContent = document.getElementById('detailContent');
@@ -978,6 +1064,8 @@
   var detailDocCount = document.getElementById('detailDocCount');
   var detailDocsList = document.getElementById('detailDocsList');
   var detailDocsEmpty = document.getElementById('detailDocsEmpty');
+  var detailDocsNoMatch = document.getElementById('detailDocsNoMatch');
+  var docSearchInput = document.getElementById('docSearchInput');
 
   var docType = document.getElementById('docType');
   var docDate = document.getElementById('docDate');
@@ -1032,6 +1120,8 @@
   var driverAddCollapsible = initCollapsible(document.getElementById('addDriverToggle'), document.getElementById('addDriverBody'), false);
   var staffAddCollapsible = initCollapsible(document.getElementById('addStaffToggle'), document.getElementById('addStaffBody'), false);
   var staffArchiveCollapsible = initCollapsible(document.getElementById('staffArchiveToggle'), document.getElementById('staffArchiveBody'), false);
+  var auditCollapsible = initCollapsible(document.getElementById('auditToggle'), document.getElementById('auditBody'), false);
+  var pendingActionsCollapsible = initCollapsible(document.getElementById('pendingActionsToggle'), document.getElementById('pendingActionsBody'), false);
 
   // --- staged multi-file picker: docFile stays the source of truth via DataTransfer ---
   var stagedFilesList = document.getElementById('stagedFilesList');
@@ -1072,9 +1162,8 @@
     renderStagedFiles();
   }
 
-  docFile.addEventListener('change', function () {
-    var newFiles = Array.prototype.slice.call(docFile.files || []);
-    newFiles.forEach(function (f) {
+  function addFilesToStaging(fileList) {
+    Array.prototype.slice.call(fileList || []).forEach(function (f) {
       var isDuplicate = stagedFiles.some(function (sf) {
         return sf.name === f.name && sf.size === f.size && sf.lastModified === f.lastModified;
       });
@@ -1082,6 +1171,31 @@
     });
     syncDocFileInput();
     renderStagedFiles();
+  }
+
+  docFile.addEventListener('change', function () {
+    addFilesToStaging(docFile.files);
+  });
+
+  var fileDropZone = document.getElementById('fileDropZone');
+  var dropDepth = 0;
+  fileDropZone.addEventListener('dragenter', function (e) {
+    e.preventDefault();
+    dropDepth++;
+    fileDropZone.classList.add('drag-over');
+  });
+  fileDropZone.addEventListener('dragover', function (e) {
+    e.preventDefault();
+  });
+  fileDropZone.addEventListener('dragleave', function () {
+    dropDepth = Math.max(0, dropDepth - 1);
+    if (dropDepth === 0) fileDropZone.classList.remove('drag-over');
+  });
+  fileDropZone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropDepth = 0;
+    fileDropZone.classList.remove('drag-over');
+    if (e.dataTransfer && e.dataTransfer.files) addFilesToStaging(e.dataTransfer.files);
   });
 
   function showLogin(message) {
@@ -1214,6 +1328,28 @@
     }
   }
 
+  var EXPIRING_SOON_HOURS = 3;
+
+  function renderStatsStrip(driverCount, signedCount, pendingCount, pendingRows) {
+    var now = Date.now();
+    var soonMs = EXPIRING_SOON_HOURS * 60 * 60 * 1000;
+    var expiringSoon = (pendingRows || []).filter(function (d) {
+      if (!d.expires_at) return false;
+      var diff = new Date(d.expires_at).getTime() - now;
+      return diff > 0 && diff <= soonMs;
+    }).length;
+
+    var parts = [
+      '<span class="stat-item"><b>' + driverCount + '</b> șoferi</span>',
+      '<span class="stat-item"><b>' + signedCount + '</b> semnate</span>',
+      '<span class="stat-item"><b>' + pendingCount + '</b> în așteptare</span>'
+    ];
+    if (expiringSoon > 0) {
+      parts.push('<span class="stat-item warn">⚠ <b>' + expiringSoon + '</b> link' + (expiringSoon > 1 ? 'uri expiră' : ' expiră') + ' în &lt;' + EXPIRING_SOON_HOURS + 'h — retrimiteți-le</span>');
+    }
+    statsStrip.innerHTML = parts.join('');
+  }
+
   async function loadAll() {
     var driversResult = await sb.from('drivers').select('*').order('full_name', { ascending: true });
     if (driversResult.error) {
@@ -1261,6 +1397,7 @@
 
     var totalDocs = signedResult.data.length + pendingResult.data.length;
     topSubtitle.textContent = driversCache.length + ' șoferi · ' + totalDocs + ' documente';
+    renderStatsStrip(driversCache.length, signedResult.data.length, pendingResult.data.length, pendingResult.data);
 
     renderDriverList();
 
@@ -1279,7 +1416,19 @@
       driverListEl.innerHTML = '<div class="state-msg">Niciun șofer adăugat încă. Adaugă unul mai sus.</div>';
       return;
     }
-    driverListEl.innerHTML = driversCache.map(function (dr) {
+
+    var query = driverSearchInput.value.trim().toLowerCase();
+    var filteredDrivers = query ? driversCache.filter(function (dr) {
+      return (dr.full_name || '').toLowerCase().indexOf(query) !== -1 ||
+             (dr.phone || '').toLowerCase().indexOf(query) !== -1;
+    }) : driversCache;
+
+    if (filteredDrivers.length === 0) {
+      driverListEl.innerHTML = '<div class="state-msg">Niciun șofer nu corespunde căutării.</div>';
+      return;
+    }
+
+    driverListEl.innerHTML = filteredDrivers.map(function (dr) {
       var docs = docsByDriver[dr.id] || [];
       var pendingCount = docs.filter(function (d) { return d.type === 'pending'; }).length;
       var signedCount = docs.length - pendingCount;
@@ -1334,33 +1483,8 @@
     dossierLinkBtn.textContent = 'Link pentru tot dosarul';
     dossierLinkBtn.onclick = function () { generateDossierLink(driverId, dossierLinkBtn); };
 
-    var docs = docsByDriver[driverId] || [];
-    detailDocCount.textContent = docs.length;
-
-    if (docs.length === 0) {
-      detailDocsList.innerHTML = '';
-      detailDocsEmpty.style.display = 'block';
-    } else {
-      detailDocsEmpty.style.display = 'none';
-      detailDocsList.innerHTML = docs.map(function (item, idx) {
-        var badge = item.type === 'signed' ? '<span class="badge">✓ Semnat</span>' : '<span class="badge pending">În așteptare</span>';
-        return '' +
-          '<div class="doc-row" data-idx="' + idx + '">' +
-            '<div class="doc-row-main"><span class="doc-row-title">' + escapeHtml(item.title) + '</span><span class="doc-row-meta">' + escapeHtml(item.docType) + ' · ' + escapeHtml(item.docDate) + '</span></div>' +
-            badge +
-            '<span class="doc-row-arrow">›</span>' +
-          '</div>';
-      }).join('');
-
-      detailDocsList.querySelectorAll('.doc-row').forEach(function (el) {
-        var idx = Number(el.getAttribute('data-idx'));
-        el.addEventListener('click', function () {
-          var item = docs[idx];
-          if (item.type === 'signed') openSignedModal(item.row);
-          else openPendingModal(item.row);
-        });
-      });
-    }
+    if (isDriverSwitch) docSearchInput.value = '';
+    renderDocsList(driverId);
 
     uploadError.classList.remove('show');
     linkResult.classList.remove('show');
@@ -1369,6 +1493,58 @@
     resetStagedFiles();
     if (isDriverSwitch) uploadCollapsible.close();
   }
+
+  function renderDocsList(driverId) {
+    var docs = docsByDriver[driverId] || [];
+    detailDocCount.textContent = docs.length;
+
+    var query = docSearchInput.value.trim().toLowerCase();
+    var filteredDocs = query ? docs.filter(function (item) {
+      return (item.title || '').toLowerCase().indexOf(query) !== -1 ||
+             (item.docType || '').toLowerCase().indexOf(query) !== -1 ||
+             (item.docDate || '').toLowerCase().indexOf(query) !== -1;
+    }) : docs;
+
+    if (docs.length === 0) {
+      detailDocsList.innerHTML = '';
+      detailDocsEmpty.style.display = 'block';
+      detailDocsNoMatch.style.display = 'none';
+      return;
+    }
+    if (filteredDocs.length === 0) {
+      detailDocsList.innerHTML = '';
+      detailDocsEmpty.style.display = 'none';
+      detailDocsNoMatch.style.display = 'block';
+      return;
+    }
+
+    detailDocsEmpty.style.display = 'none';
+    detailDocsNoMatch.style.display = 'none';
+    detailDocsList.innerHTML = filteredDocs.map(function (item, idx) {
+      var badge = item.type === 'signed' ? '<span class="badge">✓ Semnat</span>' : '<span class="badge pending">În așteptare</span>';
+      return '' +
+        '<div class="doc-row" data-idx="' + idx + '">' +
+          '<div class="doc-row-main"><span class="doc-row-title">' + escapeHtml(item.title) + '</span><span class="doc-row-meta">' + escapeHtml(item.docType) + ' · ' + escapeHtml(item.docDate) + '</span></div>' +
+          badge +
+          '<span class="doc-row-arrow">›</span>' +
+        '</div>';
+    }).join('');
+
+    detailDocsList.querySelectorAll('.doc-row').forEach(function (el) {
+      var idx = Number(el.getAttribute('data-idx'));
+      el.addEventListener('click', function () {
+        var item = filteredDocs[idx];
+        if (item.type === 'signed') openSignedModal(item.row);
+        else openPendingModal(item.row);
+      });
+    });
+  }
+
+  docSearchInput.addEventListener('input', function () {
+    if (selectedDriverId) renderDocsList(selectedDriverId);
+  });
+
+  driverSearchInput.addEventListener('input', renderDriverList);
 
   backToListLink.addEventListener('click', function (e) {
     e.preventDefault();
@@ -1480,6 +1656,7 @@
     currentRow = row;
     signedDetail.style.display = 'block';
     pendingDetail.style.display = 'none';
+    auditCollapsible.close();
 
     document.getElementById('mDocId').textContent = row.document_id;
     document.getElementById('mDriver').textContent = row.driver_name;
@@ -1546,6 +1723,9 @@
     // Replace/delete are Admin-only (see supabase/migrations/007_admin_only_actions.sql) —
     // hiding them for HR here is UX convenience, the RLS policy is the real boundary.
     var isAdmin = currentRole === 'admin';
+    var pendingActionsToggle = document.getElementById('pendingActionsToggle');
+    pendingActionsToggle.style.display = isAdmin ? '' : 'none';
+    pendingActionsCollapsible.close();
 
     var replaceStatus = document.getElementById('replaceFileStatus');
     replaceStatus.classList.remove('show');
@@ -1941,22 +2121,32 @@
     } else {
       staffListEmpty.style.display = 'none';
       staffListEl.innerHTML = active.map(function (s) {
+        var actionsId = 'staffActions-' + s.id;
         return '' +
-          '<div class="staff-row">' +
-            '<div class="staff-row-main">' +
-              '<div class="staff-row-name">' + escapeHtml(s.full_name || s.email) + '</div>' +
-              '<div class="staff-row-email">' + escapeHtml(s.email) + '</div>' +
+          '<div class="staff-row-wrap">' +
+            '<div class="staff-row">' +
+              '<div class="staff-row-main">' +
+                '<div class="staff-row-name">' + escapeHtml(s.full_name || s.email) + ' <span class="role-badge show">' + (s.role === 'admin' ? 'Admin' : 'HR') + '</span></div>' +
+                '<div class="staff-row-email">' + escapeHtml(s.email) + '</div>' +
+              '</div>' +
+              '<button type="button" class="collapsible-icon staff-row-toggle" data-id="' + s.id + '" aria-expanded="false" aria-controls="' + actionsId + '" aria-label="Acțiuni pentru ' + escapeHtml(s.email) + '">+</button>' +
             '</div>' +
-            '<div class="staff-row-actions">' +
-              '<select class="staff-role-select" data-id="' + s.id + '">' +
-                '<option value="hr"' + (s.role === 'hr' ? ' selected' : '') + '>HR</option>' +
-                '<option value="admin"' + (s.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
-              '</select>' +
-              '<button type="button" class="staff-resend-btn" data-id="' + s.id + '" data-email="' + escapeHtml(s.email) + '">Retrimite email de acces</button>' +
-              '<button type="button" class="staff-deactivate-btn" data-id="' + s.id + '">Dezactivează</button>' +
+            '<div class="collapsible-body staff-row-body" id="' + actionsId + '">' +
+              '<div class="staff-row-actions">' +
+                '<select class="staff-role-select" data-id="' + s.id + '">' +
+                  '<option value="hr"' + (s.role === 'hr' ? ' selected' : '') + '>HR</option>' +
+                  '<option value="admin"' + (s.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
+                '</select>' +
+                '<button type="button" class="staff-resend-btn" data-id="' + s.id + '" data-email="' + escapeHtml(s.email) + '">Retrimite email de acces</button>' +
+                '<button type="button" class="staff-deactivate-btn" data-id="' + s.id + '">Dezactivează</button>' +
+              '</div>' +
             '</div>' +
           '</div>';
       }).join('');
+
+      staffListEl.querySelectorAll('.staff-row-toggle').forEach(function (toggleBtn) {
+        initCollapsible(toggleBtn, document.getElementById(toggleBtn.getAttribute('aria-controls')), false);
+      });
 
       staffListEl.querySelectorAll('.staff-resend-btn').forEach(function (btn) {
         btn.addEventListener('click', async function () {
