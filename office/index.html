@@ -5,14 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panou birou — Documente semnate</title>
 <style>
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+    --ink: #0f172a;
+    --ink-soft: #1e293b;
+    --muted: #64748b;
+    --muted-soft: #94a3b8;
+    --bg-alt: #f8fafc;
+    --border: #e2e8f0;
+    --accent-sky: #0ea5e9;
+    --accent-indigo: #6366f1;
+    --success: #16a34a;
+    --success-bg: #f0fdf4;
+    --success-border: #bbf0cd;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --warn-border: #fde8b8;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --danger-border: #fecaca;
+    --radius-lg: 20px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    --shadow-card: 0 6px 20px rgba(2,6,23,0.05);
+    --shadow-modal: 0 24px 64px rgba(2,6,23,0.20);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    background: #f2f4f7;
+    font-family: var(--font);
     margin: 0;
-    padding: 16px;
-    color: #1a1a1a;
+    padding: 20px 16px;
+    color: var(--ink);
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 550px at 85% -10%, rgba(14,165,233,0.10), transparent),
+      radial-gradient(700px 380px at -10% 15%, rgba(99,102,241,0.07), transparent),
+      var(--bg-alt);
   }
   .wrap {
     max-width: 1080px;
@@ -24,55 +53,65 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
-  h1 { font-size: 22px; margin: 0; }
-  h2 { font-size: 17px; margin: 0; }
-  h3 { font-size: 13px; margin: 0; }
-  .subtitle { font-size: 13px; color: #666; margin-top: 2px; }
-  .hint { font-weight: 400; color: #888; }
+  h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+  h2 { font-size: 16px; font-weight: 700; margin: 0; }
+  h3 { font-size: 12.5px; margin: 0; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .hint { font-weight: 400; color: var(--muted-soft); }
   button {
     cursor: pointer;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-weight: 600;
     font-size: 14px;
     padding: 10px 16px;
+    font-family: inherit;
+    transition: background 0.15s ease, opacity 0.15s ease;
   }
-  #refreshBtn { background: #eee; color: #333; }
-  #logoutBtn { background: #eee; color: #333; }
+  #refreshBtn { background: #fff; color: var(--ink); border: 1px solid var(--border); }
+  #refreshBtn:hover { background: var(--bg-alt); }
+  #logoutBtn { background: #fff; color: var(--ink); border: 1px solid var(--border); }
+  #logoutBtn:hover { background: var(--bg-alt); }
   .login-wrap {
-    max-width: 360px;
-    margin: 60px auto 0;
+    max-width: 380px;
+    margin: 80px auto 0;
   }
   .login-wrap h1 { font-size: 20px; margin-bottom: 4px; }
-  .login-wrap .subtitle { margin-bottom: 16px; }
+  .login-wrap .subtitle { margin-bottom: 18px; }
   .login-field { margin-bottom: 12px; }
   .login-field label {
     display: block;
     font-size: 13px;
-    color: #555;
-    margin-bottom: 4px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 5px;
   }
   .login-field input {
     width: 100%;
-    padding: 10px 12px;
+    padding: 11px 13px;
     font-size: 15px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
   }
+  .login-field input:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
   #loginBtn {
     width: 100%;
-    background: #2563eb;
+    background: var(--ink);
     color: #fff;
     margin-top: 4px;
+    padding: 12px;
+    border-radius: var(--radius-md);
   }
-  #loginBtn:disabled { background: #93b4f5; cursor: not-allowed; }
+  #loginBtn:hover:not(:disabled) { background: var(--ink-soft); }
+  #loginBtn:disabled { background: var(--muted-soft); cursor: not-allowed; }
   .login-error {
-    color: #c0342c;
-    background: #fdecea;
-    border: 1px solid #f3c1bd;
-    border-radius: 8px;
+    color: var(--danger);
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    border-radius: var(--radius-md);
     padding: 10px 12px;
     font-size: 13.5px;
     margin-top: 12px;
@@ -83,39 +122,42 @@
     display: block;
     text-align: center;
     font-size: 13px;
-    color: #2563eb;
+    color: var(--accent-indigo);
+    font-weight: 600;
     text-decoration: none;
     margin-top: 16px;
   }
+  .home-link:hover { text-decoration: underline; }
   .card {
     background: #fff;
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
   }
   .state-msg {
-    padding: 24px 8px;
+    padding: 28px 8px;
     text-align: center;
-    color: #777;
+    color: var(--muted);
     font-size: 14px;
   }
-  .state-msg.error { color: #c0342c; }
+  .state-msg.error { color: var(--danger); }
   .badge {
     display: inline-block;
-    background: #e6f4ea;
-    color: #1e7e34;
-    border-radius: 6px;
-    padding: 3px 9px;
+    background: var(--success-bg);
+    color: var(--success);
+    border-radius: 999px;
+    padding: 3px 10px;
     font-size: 12.5px;
-    font-weight: 600;
+    font-weight: 700;
     white-space: nowrap;
   }
-  .badge.pending { background: #fff4e0; color: #a15c00; }
+  .badge.pending { background: var(--warn-bg); color: var(--warn); }
   .overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.4);
+    background: rgba(15,23,42,0.45);
     align-items: flex-start;
     justify-content: center;
     padding: 24px 12px;
@@ -125,25 +167,30 @@
   .overlay.show { display: flex; }
   .modal {
     background: #fff;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     max-width: 520px;
     width: 100%;
-    padding: 20px;
+    padding: 22px;
+    box-shadow: var(--shadow-modal);
   }
   .modal-head {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
   .modal-head h2 { font-size: 18px; margin: 0; }
-  #closeModalBtn { background: #eee; color: #333; padding: 6px 12px; }
+  #closeModalBtn { background: var(--bg-alt); color: var(--ink); padding: 6px 12px; }
+  #closeModalBtn:hover { background: var(--border); }
   .field { margin-bottom: 10px; }
   .field label {
     display: block;
-    font-size: 12px;
-    color: #777;
-    margin-bottom: 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
   }
   .field .value {
     font-size: 13.5px;
@@ -153,16 +200,16 @@
     font-family: "SFMono-Regular", Consolas, monospace;
     font-size: 12px;
     word-break: break-all;
-    background: #f5f5f5;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid #eaeaea;
+    background: var(--bg-alt);
+    padding: 7px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
   }
   .doc-content {
-    background: #fafafa;
-    border: 1px solid #e2e2e2;
-    border-radius: 8px;
-    padding: 10px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
     font-size: 13px;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -170,16 +217,16 @@
   .sig-img {
     max-width: 260px;
     width: 100%;
-    border: 1px solid #eaeaea;
-    border-radius: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     background: #fff;
     display: block;
   }
   .doc-file-viewer {
-    border: 1px solid #e2e2e2;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
   .doc-file-viewer embed {
     width: 100%;
@@ -194,49 +241,56 @@
     padding: 20px 14px;
     text-align: center;
     font-size: 13px;
-    color: #666;
-    background: #fafafa;
+    color: var(--muted);
+    background: var(--bg-alt);
   }
   .doc-file-open-link {
     display: block;
     text-align: center;
     font-size: 13px;
-    color: #2563eb;
+    color: var(--accent-indigo);
+    font-weight: 600;
     text-decoration: none;
   }
-  #verifyBtn { background: #2563eb; color: #fff; margin-top: 6px; }
-  #verifyBtn:disabled { background: #93b4f5; cursor: not-allowed; }
+  .doc-file-open-link:hover { text-decoration: underline; }
+  #verifyBtn { background: var(--ink); color: #fff; margin-top: 6px; }
+  #verifyBtn:hover:not(:disabled) { background: var(--ink-soft); }
+  #verifyBtn:disabled { background: var(--muted-soft); cursor: not-allowed; }
   .verify-result {
     margin-top: 10px;
     padding: 10px 12px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 13.5px;
     display: none;
   }
   .verify-result.show { display: block; }
-  .verify-result.ok { background: #e6f4ea; color: #1e7e34; }
-  .verify-result.bad { background: #fdecea; color: #c0342c; }
+  .verify-result.ok { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+  .verify-result.bad { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
   .upload-field { margin-bottom: 12px; }
   .upload-field label {
     display: block;
     font-size: 13px;
-    color: #555;
-    margin-bottom: 4px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 5px;
   }
   .upload-field input {
     width: 100%;
     padding: 10px 12px;
     font-size: 15px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
   }
-  #submitDocBtn { background: #2563eb; color: #fff; width: 100%; }
-  #submitDocBtn:disabled { background: #93b4f5; cursor: not-allowed; }
+  .upload-field input:focus-visible { outline: 2px solid var(--accent-sky); outline-offset: 1px; }
+  #submitDocBtn { background: var(--ink); color: #fff; width: 100%; padding: 12px; border-radius: var(--radius-md); }
+  #submitDocBtn:hover:not(:disabled) { background: var(--ink-soft); }
+  #submitDocBtn:disabled { background: var(--muted-soft); cursor: not-allowed; }
   .upload-error {
-    color: #c0342c;
-    background: #fdecea;
-    border: 1px solid #f3c1bd;
-    border-radius: 8px;
+    color: var(--danger);
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    border-radius: var(--radius-md);
     padding: 10px 12px;
     font-size: 13.5px;
     margin-top: 12px;
@@ -246,9 +300,10 @@
   .link-result {
     display: none;
     margin-top: 12px;
-    background: #e6f4ea;
-    border-radius: 8px;
-    padding: 12px;
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    border-radius: var(--radius-md);
+    padding: 14px;
     font-size: 13.5px;
   }
   .link-result.show { display: block; }
@@ -257,12 +312,13 @@
     font-size: 12.5px;
     word-break: break-all;
     background: #fff;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid #d6ead9;
+    padding: 7px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--success-border);
     margin: 6px 0 10px;
   }
-  #copyLinkBtn { background: #1e7e34; color: #fff; }
+  #copyLinkBtn { background: var(--success); color: #fff; }
+  #copyLinkBtn:hover { opacity: 0.9; }
   .link-panel {
     text-align: center;
     padding: 16px 8px;
@@ -271,44 +327,45 @@
     font-family: "SFMono-Regular", Consolas, monospace;
     font-size: 12.5px;
     word-break: break-all;
-    background: #f5f5f5;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid #eaeaea;
+    background: var(--bg-alt);
+    padding: 7px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
     margin: 10px 0;
   }
   .qr-wrap { text-align: center; margin: 10px 0; }
   .qr-wrap svg { width: 140px; height: 140px; }
-  #chainBtn { background: #eee; color: #333; }
+  #chainBtn { background: #fff; color: var(--ink); border: 1px solid var(--border); }
+  #chainBtn:hover { background: var(--bg-alt); }
   .chain-result {
     margin-bottom: 12px;
-    padding: 10px 12px;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
     font-size: 13.5px;
     display: none;
   }
   .chain-result.show { display: block; }
-  .chain-result.ok { background: #e6f4ea; color: #1e7e34; }
-  .chain-result.bad { background: #fdecea; color: #c0342c; }
+  .chain-result.ok { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+  .chain-result.bad { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
   .role-badge {
     display: none;
     background: #eef2ff;
-    color: #3730a3;
-    border-radius: 6px;
-    padding: 3px 9px;
+    color: var(--accent-indigo);
+    border-radius: 999px;
+    padding: 3px 10px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     margin-left: 8px;
     vertical-align: middle;
   }
   .role-badge.show { display: inline-block; }
   .no-role-banner {
     display: none;
-    background: #fdecea;
-    color: #c0342c;
-    border: 1px solid #f3c1bd;
-    border-radius: 8px;
-    padding: 12px;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger-border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
     font-size: 13.5px;
     margin-bottom: 16px;
   }
@@ -332,7 +389,7 @@
     gap: 16px;
     align-items: start;
   }
-  .driver-panel { padding: 14px; }
+  .driver-panel { padding: 16px; }
   .new-driver-row {
     display: flex;
     gap: 8px;
@@ -341,36 +398,40 @@
   .new-driver-row input {
     flex: 1;
     min-width: 0;
-    padding: 9px 10px;
+    padding: 9px 11px;
     font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
   }
-  #submitDriverBtn { background: #2563eb; color: #fff; padding: 9px 14px; font-size: 13px; white-space: nowrap; }
+  #submitDriverBtn { background: var(--ink); color: #fff; padding: 9px 14px; font-size: 13px; white-space: nowrap; border-radius: var(--radius-md); }
+  #submitDriverBtn:hover { background: var(--ink-soft); }
   #newDriverPhone {
     width: 100%;
-    padding: 9px 10px;
+    padding: 9px 11px;
     font-size: 13.5px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     margin-bottom: 14px;
+    font-family: inherit;
   }
-  .driver-list { border-top: 1px solid #eee; margin-top: 4px; }
+  .driver-list { border-top: 1px solid var(--border); margin-top: 4px; }
   .driver-item {
-    padding: 10px 6px;
-    border-bottom: 1px solid #eee;
+    padding: 11px 8px;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border-left: 3px solid transparent;
+    transition: background 0.12s ease;
   }
-  .driver-item:hover { background: #f7f9fc; }
+  .driver-item:hover { background: var(--bg-alt); }
   .driver-item.selected {
-    background: #eef4ff;
-    border-left-color: #2563eb;
+    background: #eef2ff;
+    border-left-color: var(--accent-indigo);
   }
-  .driver-item-name { font-weight: 600; font-size: 14px; }
-  .driver-item-phone { font-size: 12px; color: #888; margin-top: 1px; }
-  .driver-item-count { font-size: 12px; color: #666; margin-top: 3px; }
+  .driver-item-name { font-weight: 700; font-size: 14px; }
+  .driver-item-phone { font-size: 12px; color: var(--muted-soft); margin-top: 1px; }
+  .driver-item-count { font-size: 12px; color: var(--muted); margin-top: 3px; }
 
   .detail-panel { min-height: 320px; }
   .mobile-back { display: none; }
@@ -382,42 +443,62 @@
     gap: 10px;
     margin-bottom: 8px;
   }
-  .dossier-link-btn { background: #eee; color: #333; padding: 9px 14px; font-size: 13px; }
+  .dossier-link-btn { background: #fff; color: var(--ink); border: 1px solid var(--border); padding: 9px 14px; font-size: 13px; }
+  .dossier-link-btn:hover { background: var(--bg-alt); }
   .dossier-link-result {
     display: none;
     margin-top: 10px;
-    background: #e6f4ea;
-    border-radius: 8px;
-    padding: 12px;
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    border-radius: var(--radius-md);
+    padding: 14px;
     font-size: 13.5px;
   }
   .dossier-link-result.show { display: block; }
   .detail-subhead {
-    color: #888;
+    color: var(--muted-soft);
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
+    font-size: 11.5px;
     text-transform: uppercase;
-    margin: 18px 0 8px;
+    margin: 20px 0 8px;
   }
-  .doc-list { border-top: 1px solid #eee; }
+  .doc-list { border-top: 1px solid var(--border); }
   .doc-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 11px 4px;
-    border-bottom: 1px solid #eee;
+    padding: 12px 6px;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.12s ease;
   }
-  .doc-row:hover { background: #f7f9fc; }
+  .doc-row:hover { background: var(--bg-alt); }
   .doc-row-main { flex: 1; min-width: 0; }
-  .doc-row-title { font-weight: 600; font-size: 14px; }
-  .doc-row-meta { font-size: 12.5px; color: #777; margin-left: 6px; }
-  .doc-row-arrow { color: #bbb; font-size: 18px; }
+  .doc-row-title { font-weight: 700; font-size: 14px; }
+  .doc-row-meta { font-size: 12.5px; color: var(--muted); margin-left: 6px; }
+  .doc-row-arrow { color: var(--muted-soft); font-size: 18px; }
   .upload-inline {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px dashed #ddd;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--border);
   }
+  .replace-file-btn {
+    background: var(--bg-alt);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    width: 100%;
+    margin-top: 10px;
+  }
+  .replace-file-btn:hover { background: var(--border); }
+  .replace-file-status {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 6px;
+    display: none;
+  }
+  .replace-file-status.show { display: block; }
 
   @media (max-width: 760px) {
     .layout { grid-template-columns: 1fr; }
@@ -579,12 +660,23 @@
 
     <div id="pendingDetail" class="link-panel">
       <div><b id="pTitle"></b></div>
-      <div id="pMeta" style="color:#666; font-size:13.5px; margin-top:4px;"></div>
-      <div>Link pentru șofer (expiră în 24h):</div>
+      <div id="pMeta" style="color:var(--muted); font-size:13.5px; margin-top:4px;"></div>
+
+      <div style="text-align:left; margin-top:14px;">
+        <div class="doc-file-viewer" id="pFileViewer"></div>
+        <a class="doc-file-open-link" id="pFileOpenLink" href="#" target="_blank" rel="noopener" style="display:none;">Deschide documentul într-o filă nouă</a>
+      </div>
+
+      <div style="margin-top:14px;">Link pentru șofer (expiră în 24h):</div>
       <div class="value" id="pLink"></div>
       <div class="qr-wrap" id="pQr"></div>
       <button id="copyPendingLinkBtn" type="button">Copiază linkul</button>
-      <button id="deletePendingBtn" type="button" style="background:#fdecea; color:#c0342c; margin-top:10px;">Șterge documentul</button>
+
+      <input type="file" id="pReplaceFileInput" accept="application/pdf,image/*" style="display:none;">
+      <button id="replaceFileBtn" type="button" class="replace-file-btn">Înlocuiește fișierul</button>
+      <div class="replace-file-status" id="replaceFileStatus"></div>
+
+      <button id="deletePendingBtn" type="button" style="background:var(--danger-bg); color:var(--danger); margin-top:10px; width:100%;">Șterge documentul</button>
     </div>
   </div>
 </div>
@@ -1040,6 +1132,9 @@
 
     document.getElementById('pTitle').textContent = doc.title;
     document.getElementById('pMeta').textContent = (doc.drivers ? doc.drivers.full_name + ' · ' : '') + doc.doc_type + ' · ' + doc.doc_date;
+
+    renderPendingFileViewer(doc);
+
     var link = location.origin + '/driver/?id=' + doc.id;
     document.getElementById('pLink').textContent = link;
     renderQr('pQr', link);
@@ -1050,12 +1145,89 @@
       setTimeout(function () { btn.textContent = 'Copiază linkul'; }, 1500);
     };
 
+    var replaceStatus = document.getElementById('replaceFileStatus');
+    replaceStatus.classList.remove('show');
+    replaceStatus.textContent = '';
+    var replaceBtn = document.getElementById('replaceFileBtn');
+    replaceBtn.disabled = false;
+    replaceBtn.textContent = 'Înlocuiește fișierul';
+    var replaceInput = document.getElementById('pReplaceFileInput');
+    replaceInput.value = '';
+    replaceBtn.onclick = function () { replaceInput.click(); };
+    replaceInput.onchange = function () {
+      if (replaceInput.files && replaceInput.files[0]) {
+        replacePendingFile(doc, replaceInput.files[0], replaceBtn, replaceStatus);
+      }
+    };
+
     var deleteBtn = document.getElementById('deletePendingBtn');
     deleteBtn.disabled = false;
     deleteBtn.textContent = 'Șterge documentul';
     deleteBtn.onclick = function () { deletePendingDocument(doc, deleteBtn); };
 
     overlay.classList.add('show');
+  }
+
+  function renderPendingFileViewer(doc) {
+    var fileViewerEl = document.getElementById('pFileViewer');
+    var fileOpenLink = document.getElementById('pFileOpenLink');
+    if (doc.file_path) {
+      var docUrl = sb.storage.from('documents').getPublicUrl(doc.file_path).data.publicUrl;
+      fileViewerEl.innerHTML = docFileViewerHtml(doc.file_type, docUrl);
+      fileOpenLink.href = docUrl;
+      fileOpenLink.style.display = 'block';
+    } else {
+      fileViewerEl.innerHTML = '<div class="doc-file-viewer-fallback">Fișierul nu a fost găsit.</div>';
+      fileOpenLink.style.display = 'none';
+    }
+  }
+
+  async function replacePendingFile(doc, file, btn, statusEl) {
+    if (!isSupportedFile(file)) {
+      statusEl.textContent = 'Fișierul „' + file.name + '" nu este acceptat — doar PDF sau imagini.';
+      statusEl.classList.add('show');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Se înlocuiește…';
+    statusEl.classList.remove('show');
+    try {
+      var fileBuffer = await file.arrayBuffer();
+      var fileHash = await sha256HexFromBuffer(fileBuffer);
+      var fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
+      var newPath = doc.document_id + '_v' + Date.now() + '.' + extFromFile(file);
+      var oldPath = doc.file_path;
+
+      var uploadResult = await sb.storage.from('documents').upload(newPath, file, { contentType: file.type });
+      if (uploadResult.error) throw uploadResult.error;
+
+      var updateResult = await sb.from('documents').update({
+        file_path: newPath,
+        file_type: fileType,
+        file_hash: fileHash,
+        title: titleFromFilename(file.name)
+      }).eq('id', doc.id);
+      if (updateResult.error) throw updateResult.error;
+
+      if (oldPath) await sb.storage.from('documents').remove([oldPath]); // best-effort cleanup
+
+      doc.file_path = newPath;
+      doc.file_type = fileType;
+      doc.title = titleFromFilename(file.name);
+      document.getElementById('pTitle').textContent = doc.title;
+      renderPendingFileViewer(doc);
+
+      statusEl.textContent = '✓ Fișier înlocuit. Linkul trimis șoferului rămâne același.';
+      statusEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Înlocuiește fișierul';
+      loadAll(); // refresh list in background so title/type stay in sync everywhere
+    } catch (err) {
+      statusEl.textContent = 'Eroare la înlocuire: ' + (err.message || JSON.stringify(err));
+      statusEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Înlocuiește fișierul';
+    }
   }
 
   async function deletePendingDocument(doc, btn) {
