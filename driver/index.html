@@ -687,7 +687,11 @@
     return ocrWorkerPromise;
   }
 
-  var SIGNATURE_KEYWORD_STEMS = ['semnatur', 'subsemnat', 'subscris', 'signatur', 'подпис'];
+  // "Strong" stems name the signature itself; "weak" ones (subsemnatul/subscris, "the
+  // undersigned") often show up earlier, inside a disclaimer sentence, before the actual
+  // signature line — so a weak match is only used if no strong one exists on the page.
+  var SIGNATURE_KEYWORD_STEMS_STRONG = ['semnatur', 'signatur', 'подпис'];
+  var SIGNATURE_KEYWORD_STEMS_WEAK = ['subsemnat', 'subscris'];
 
   function stripDiacritics(s) {
     return String(s || '')
@@ -698,12 +702,15 @@
       .replace(/[ț]/g, 't');
   }
 
-  function isSignatureKeyword(text) {
+  function signatureKeywordTier(text) {
     var norm = stripDiacritics(text);
-    for (var i = 0; i < SIGNATURE_KEYWORD_STEMS.length; i++) {
-      if (norm.indexOf(SIGNATURE_KEYWORD_STEMS[i]) !== -1) return true;
+    for (var i = 0; i < SIGNATURE_KEYWORD_STEMS_STRONG.length; i++) {
+      if (norm.indexOf(SIGNATURE_KEYWORD_STEMS_STRONG[i]) !== -1) return 2;
     }
-    return false;
+    for (var j = 0; j < SIGNATURE_KEYWORD_STEMS_WEAK.length; j++) {
+      if (norm.indexOf(SIGNATURE_KEYWORD_STEMS_WEAK[j]) !== -1) return 1;
+    }
+    return 0;
   }
 
   function flattenWords(page) {
@@ -739,10 +746,19 @@
       var page = scanOrder[i];
       var result = await worker.recognize(page.canvas, {}, { blocks: true });
       var words = flattenWords(result.data);
+      var best = null;
       for (var w = 0; w < words.length; w++) {
-        if (words[w].confidence > 40 && isSignatureKeyword(words[w].text)) {
-          return { pageEl: page.el, bbox: words[w].bbox, canvasHeight: page.canvas.height, pageNum: page.pageNum, scale: page.scale };
+        if (words[w].confidence <= 40) continue;
+        var tier = signatureKeywordTier(words[w].text);
+        if (tier === 0) continue;
+        // Prefer a stronger keyword; among equal tiers, prefer whichever sits lower on the
+        // page (larger y0) — the real signature line, not an earlier mention in body text.
+        if (!best || tier > best.tier || (tier === best.tier && words[w].bbox.y0 > best.word.bbox.y0)) {
+          best = { tier: tier, word: words[w] };
         }
+      }
+      if (best) {
+        return { pageEl: page.el, bbox: best.word.bbox, canvasHeight: page.canvas.height, pageNum: page.pageNum, scale: page.scale };
       }
     }
     return null;
