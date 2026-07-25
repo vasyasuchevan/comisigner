@@ -173,6 +173,7 @@
   .pdf-page canvas {
     width: 100%;
     display: block;
+    cursor: crosshair;
   }
   .pdf-pages-skipped {
     padding: 14px 16px;
@@ -183,23 +184,36 @@
     border-top: 6px solid var(--bg-alt);
     border-bottom: 6px solid var(--bg-alt);
   }
-  .sig-hint-marker {
+  .sig-pin {
     position: absolute;
-    left: 0;
-    right: 0;
+    transform: translate(-50%, -50%);
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-sky));
+    color: #fff;
     display: flex;
     align-items: center;
-    gap: 6px;
-    background: linear-gradient(90deg, var(--accent-indigo), var(--accent-sky));
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 10px;
-    transform: translateY(-50%);
-    box-shadow: 0 2px 8px rgba(15,23,42,0.25);
-    cursor: pointer;
+    justify-content: center;
+    font-size: 15px;
+    box-shadow: 0 2px 10px rgba(15,23,42,0.35), 0 0 0 4px rgba(99,102,241,0.25);
+    pointer-events: none;
     z-index: 2;
-    border-radius: 8px;
+    animation: sigPinPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes sigPinPulse {
+    0%, 100% { box-shadow: 0 2px 10px rgba(15,23,42,0.35), 0 0 0 4px rgba(99,102,241,0.25); }
+    50% { box-shadow: 0 2px 10px rgba(15,23,42,0.35), 0 0 0 8px rgba(99,102,241,0.12); }
+  }
+  .sig-placement-hint {
+    font-size: 12.5px;
+    color: var(--muted);
+    background: var(--bg-alt);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    text-align: center;
   }
   .file-open-link {
     display: block;
@@ -436,6 +450,7 @@
     <div><b>Tip document:</b> <span id="docType"></span></div>
     <div><b>Data:</b> <span id="docDate"></span></div>
   </div>
+  <div class="sig-placement-hint" id="sigPlacementHint" style="display:none;"></div>
   <div class="file-viewer" id="fileViewer"></div>
   <a class="file-open-link" id="fileOpenLink" href="#" target="_blank" rel="noopener">Deschide documentul într-o filă nouă</a>
 </div>
@@ -555,6 +570,7 @@
   var signaturePad = null;
   var documentSigned = false;
   var lastSingleDocSpot = null; // OCR-found signature location for the current single doc, if any
+  var userTappedPlacement = false; // true once the driver manually (re)placed the pin — OCR must not override it after that
 
   // The AI signature-placement feature may relocate signCard into the middle of a
   // rendered PDF. This anchor marks where it lives by default, so it can always be moved
@@ -853,7 +869,7 @@
         }
       }
       if (best) {
-        return { pageEl: page.el, bbox: best.word.bbox, canvasHeight: page.canvas.height, pageNum: page.pageNum, scale: page.scale };
+        return { pageEl: page.el, bbox: best.word.bbox, canvasHeight: page.canvas.height, canvasWidth: page.canvas.width, pageNum: page.pageNum, scale: page.scale };
       }
     }
     return null;
@@ -866,7 +882,7 @@
   // placeholder for what's skipped — "open in a new tab" already covers full inspection.
   var MAX_PAGES_TO_RENDER = 15;
 
-  function pickPagesToRender(numPages) {
+  function pickPagesToRender(numPages, forcePage) {
     if (numPages <= MAX_PAGES_TO_RENDER) {
       var all = [];
       for (var i = 1; i <= numPages; i++) all.push(i);
@@ -877,16 +893,20 @@
     for (var h = 1; h <= headCount; h++) result.push(h);
     result.push('skip:' + (numPages - OCR_MAX_PAGES_TO_SCAN - headCount));
     for (var t = numPages - OCR_MAX_PAGES_TO_SCAN + 1; t <= numPages; t++) result.push(t);
+    // An office-preset signature page can fall inside the skipped middle range for very
+    // long documents — render it too (appended out of order at the end is a rare, minor
+    // rough edge, acceptable for the HR-paperwork-length documents this app actually sees).
+    if (forcePage && result.indexOf(forcePage) === -1) result.push(forcePage);
     return result;
   }
 
-  async function renderPdfPages(url, container) {
+  async function renderPdfPages(url, container, forcePage) {
     var pdfjsLib = await loadPdfjs();
     var pdf = await pdfjsLib.getDocument({ url: url }).promise;
     var pages = [];
     var targetCssWidth = container.clientWidth || 320;
     var dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2); // capped — OCR/render cost grows with pixel count
-    var plan = pickPagesToRender(pdf.numPages);
+    var plan = pickPagesToRender(pdf.numPages, forcePage);
     for (var p = 0; p < plan.length; p++) {
       var item = plan[p];
       if (typeof item === 'string') {
@@ -914,19 +934,52 @@
     return pages;
   }
 
-  function placeSignatureHint(spot) {
-    var ratio = spot.bbox.y0 / spot.canvasHeight;
-    var marker = document.createElement('a');
-    marker.href = '#signCard';
-    marker.className = 'sig-hint-marker';
-    marker.style.top = (ratio * 100) + '%';
-    marker.textContent = '✍️ Semnătură detectată aici (AI) — atinge pentru a semna';
-    marker.addEventListener('click', function (e) {
-      e.preventDefault();
-      signCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    spot.pageEl.appendChild(marker);
+  // Single source of truth for "where the signature goes" — used identically whether the
+  // spot came from OCR, an office-set preset, or the driver tapping the document manually.
+  // Reuses the exact bbox/scale shape stampSignatureOntoPdf() already expects, so that
+  // function needed zero changes to support any of these three sources.
+  function placePin(spot) {
+    var old = document.querySelector('.sig-pin');
+    if (old) old.remove();
+    var pin = document.createElement('div');
+    pin.className = 'sig-pin';
+    pin.style.left = ((spot.bbox.x1 / spot.canvasWidth) * 100) + '%';
+    pin.style.top = ((spot.bbox.y1 / spot.canvasHeight) * 100) + '%';
+    pin.textContent = '✍️';
+    spot.pageEl.appendChild(pin);
     spot.pageEl.insertAdjacentElement('afterend', signCard);
+    lastSingleDocSpot = spot; // reused at sign time to stamp the drawn signature at the same spot
+    updatePlacementHint(true);
+  }
+
+  function updatePlacementHint(found) {
+    var hintEl = document.getElementById('sigPlacementHint');
+    hintEl.textContent = found
+      ? '✍️ Am plasat semnătura aici — atinge documentul dacă vrei să o muți în alt loc.'
+      : 'Nu am găsit automat locul semnăturii — atinge documentul mai jos, exact unde vrei să semnezi (opțional — altfel semnătura se pune automat la finalul ultimei pagini).';
+    hintEl.style.display = 'block';
+  }
+
+  // Lets the driver place or move the pin by tapping anywhere on any rendered page —
+  // the only way to get a signature placed at all when OCR finds nothing, and the way to
+  // correct OCR (or an office preset) when it guessed wrong, including onto a different page.
+  function attachTapToPlaceHandlers(pages) {
+    pages.forEach(function (page) {
+      page.canvas.addEventListener('click', function (e) {
+        var rect = page.canvas.getBoundingClientRect();
+        var xPct = (e.clientX - rect.left) / rect.width;
+        var yPct = (e.clientY - rect.top) / rect.height;
+        userTappedPlacement = true;
+        placePin({
+          pageEl: page.el,
+          bbox: { x0: 0, y0: 0, x1: xPct * page.canvas.width, y1: yPct * page.canvas.height },
+          canvasHeight: page.canvas.height,
+          canvasWidth: page.canvas.width,
+          pageNum: page.pageNum,
+          scale: page.scale
+        });
+      });
+    });
   }
 
   // Tries the AI-assisted canvas+OCR pipeline for a PDF; on any failure, falls back to the
@@ -936,16 +989,46 @@
     var pagesWrap = document.createElement('div');
     pagesWrap.className = 'file-viewer-pages';
     viewerEl.appendChild(pagesWrap);
+
+    var doc = currentDoc;
+    var hasPreset = doc && doc.signature_page && doc.signature_x_pct != null && doc.signature_y_pct != null;
+
     try {
-      var pages = await renderPdfPages(url, pagesWrap);
+      var pages = await renderPdfPages(url, pagesWrap, hasPreset ? doc.signature_page : null);
+      attachTapToPlaceHandlers(pages);
+
+      if (hasPreset) {
+        // The office already told us exactly where — skip OCR entirely, no need to spend
+        // the time/battery budget guessing when we already know.
+        var presetPage = pages.filter(function (p) { return p.pageNum === doc.signature_page; })[0];
+        if (presetPage) {
+          placePin({
+            pageEl: presetPage.el,
+            bbox: {
+              x0: 0, y0: 0,
+              x1: (doc.signature_x_pct / 100) * presetPage.canvas.width,
+              y1: (doc.signature_y_pct / 100) * presetPage.canvas.height
+            },
+            canvasHeight: presetPage.canvas.height,
+            canvasWidth: presetPage.canvas.width,
+            pageNum: presetPage.pageNum,
+            scale: presetPage.scale
+          });
+          return;
+        }
+      }
+
       try {
         var spot = await withTimeout(findSignatureSpot(pages), OCR_TIME_BUDGET_MS);
+        if (userTappedPlacement) return; // driver already placed it manually while OCR was still running — don't override
         if (spot) {
-          placeSignatureHint(spot);
-          lastSingleDocSpot = spot; // reused at sign time to stamp the drawn signature at the same spot
+          placePin(spot);
+        } else {
+          updatePlacementHint(false);
         }
       } catch (ocrErr) {
         // OCR failed or timed out — the document is still visible, just without the hint.
+        if (!userTappedPlacement) updatePlacementHint(false);
       }
     } catch (renderErr) {
       viewerEl.innerHTML = fileViewerHtml('pdf', url);
@@ -1092,6 +1175,8 @@
       mode = 'single';
       currentDoc = doc;
       lastSingleDocSpot = null;
+      userTappedPlacement = false;
+      document.getElementById('sigPlacementHint').style.display = 'none';
       resetSignControls();
       restoreSignCardPosition();
       stateCard.style.display = 'none';

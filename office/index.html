@@ -620,6 +620,34 @@
     border-color: var(--accent-indigo);
   }
 
+  /* --- signature-placement preview (upload form, single PDF only) --- */
+  .sig-placement-preview {
+    max-height: 420px;
+    overflow-y: auto;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .sig-placement-preview .pdf-page { position: relative; }
+  .sig-placement-preview .pdf-page + .pdf-page { border-top: 6px solid var(--bg-alt); }
+  .sig-placement-preview .pdf-page canvas { width: 100%; display: block; cursor: crosshair; }
+  .sig-pin {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-sky));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    box-shadow: 0 2px 10px rgba(15,23,42,0.35), 0 0 0 4px rgba(99,102,241,0.25);
+    pointer-events: none;
+    z-index: 2;
+  }
+
   /* --- search inputs (driver list / document list) --- */
   .search-input {
     display: block;
@@ -868,6 +896,17 @@
                 <label class="file-picker-btn" for="docFile">📎 Alege fișiere…</label>
                 <input type="file" id="docFile" accept="application/pdf,image/*" multiple class="visually-hidden" aria-describedby="docFileLabel">
                 <div id="stagedFilesList" class="staged-files-list"></div>
+              </div>
+            </div>
+            <div class="upload-field" id="sigPlacementField" style="display:none;">
+              <button type="button" class="collapsible-toggle detail-subhead" id="sigPlacementToggle" aria-expanded="false" aria-controls="sigPlacementBody">
+                <span class="collapsible-icon">+</span> Setează locul semnăturii (opțional)
+              </button>
+              <div class="collapsible-body" id="sigPlacementBody">
+                <div class="hint" style="margin-bottom:8px;">Șoferul va vedea semnătura exact aici, fără să mai fie nevoie de detectarea automată (AI). Apasă pe pagina de mai jos pentru a alege locul — disponibil doar când e selectat un singur fișier PDF.</div>
+                <div id="sigPlacementPreview" class="sig-placement-preview"></div>
+                <div id="sigPlacementStatus" class="hint" style="margin-top:8px;"></div>
+                <button type="button" id="sigPlacementClearBtn" class="staff-resend-btn" style="display:none; margin-top:8px;">Șterge poziția</button>
               </div>
             </div>
             <button id="submitDocBtn" type="button">Încarcă și generează link</button>
@@ -1183,6 +1222,7 @@
   function renderStagedFiles() {
     if (stagedFiles.length === 0) {
       stagedFilesList.innerHTML = '';
+      updateSigPlacementVisibility();
       return;
     }
     stagedFilesList.innerHTML = stagedFiles.map(function (f, idx) {
@@ -1202,6 +1242,7 @@
         renderStagedFiles();
       });
     });
+    updateSigPlacementVisibility();
   }
 
   function resetStagedFiles() {
@@ -1209,6 +1250,125 @@
     syncDocFileInput();
     renderStagedFiles();
   }
+
+  // --- signature-placement preview: office can pre-set where the signature goes,
+  // skipping OCR entirely on the driver's side. Only offered for a single staged PDF —
+  // multiple files share the rest of the upload form's metadata, but a signature spot is
+  // inherently per-document, so supporting it for a batch would need a redesigned flow. ---
+  var sigPlacementField = document.getElementById('sigPlacementField');
+  var sigPlacementToggle = document.getElementById('sigPlacementToggle');
+  var sigPlacementBody = document.getElementById('sigPlacementBody');
+  var sigPlacementPreview = document.getElementById('sigPlacementPreview');
+  var sigPlacementStatus = document.getElementById('sigPlacementStatus');
+  var sigPlacementClearBtn = document.getElementById('sigPlacementClearBtn');
+  var sigPlacementCollapsible = initCollapsible(sigPlacementToggle, sigPlacementBody, false);
+  var sigPlacementValue = null; // {page, xPct, yPct} or null — sent with the upload if set
+  var sigPlacementRenderedForFile = null;
+
+  var officePdfjsLibPromise = null;
+  function loadOfficePdfjs() {
+    if (!officePdfjsLibPromise) {
+      officePdfjsLibPromise = import('./vendor/pdfjs/pdf.min.mjs').then(function (lib) {
+        lib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.mjs';
+        return lib;
+      });
+    }
+    return officePdfjsLibPromise;
+  }
+
+  function isSinglePdfStaged() {
+    return stagedFiles.length === 1 && stagedFiles[0].type === 'application/pdf';
+  }
+
+  function resetSigPlacement() {
+    sigPlacementValue = null;
+    sigPlacementRenderedForFile = null;
+    sigPlacementPreview.innerHTML = '';
+    sigPlacementStatus.textContent = '';
+    sigPlacementClearBtn.style.display = 'none';
+  }
+
+  function updateSigPlacementVisibility() {
+    if (isSinglePdfStaged()) {
+      sigPlacementField.style.display = '';
+      // The staged file was swapped for a different one while this section was already
+      // showing a preview/pin for the old one — the old position would silently attach to
+      // the wrong document otherwise.
+      if (sigPlacementRenderedForFile && sigPlacementRenderedForFile !== stagedFiles[0]) {
+        resetSigPlacement();
+        if (sigPlacementToggle.getAttribute('aria-expanded') === 'true') renderSigPlacementPreviewIfNeeded();
+      }
+    } else {
+      sigPlacementField.style.display = 'none';
+      sigPlacementCollapsible.close();
+      resetSigPlacement();
+    }
+  }
+
+  sigPlacementClearBtn.addEventListener('click', function () {
+    sigPlacementValue = null;
+    sigPlacementPreview.querySelectorAll('.sig-pin').forEach(function (p) { p.remove(); });
+    sigPlacementStatus.textContent = 'Poziția a fost ștearsă — se revine la detectarea automată (AI) pe telefonul șoferului.';
+    sigPlacementClearBtn.style.display = 'none';
+  });
+
+  async function renderSigPlacementPreviewIfNeeded() {
+    if (!isSinglePdfStaged()) return;
+    var file = stagedFiles[0];
+    if (sigPlacementRenderedForFile === file) return;
+    sigPlacementRenderedForFile = file;
+    sigPlacementValue = null;
+    sigPlacementClearBtn.style.display = 'none';
+    sigPlacementPreview.innerHTML = '<div class="state-msg">Se încarcă previzualizarea…</div>';
+    try {
+      var pdfjsLib = await loadOfficePdfjs();
+      var buffer = await file.arrayBuffer();
+      var pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      sigPlacementPreview.innerHTML = '';
+      var maxPages = Math.min(pdf.numPages, 15);
+      for (var i = 1; i <= maxPages; i++) {
+        var page = await pdf.getPage(i);
+        var baseViewport = page.getViewport({ scale: 1 });
+        var scale = (sigPlacementPreview.clientWidth || 460) / baseViewport.width;
+        var viewport = page.getViewport({ scale: scale });
+        var canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+        var pageEl = document.createElement('div');
+        pageEl.className = 'pdf-page';
+        pageEl.appendChild(canvas);
+        sigPlacementPreview.appendChild(pageEl);
+        (function (pageNum, pageElRef, canvasRef) {
+          canvasRef.addEventListener('click', function (e) {
+            var rect = canvasRef.getBoundingClientRect();
+            var xPct = ((e.clientX - rect.left) / rect.width) * 100;
+            var yPct = ((e.clientY - rect.top) / rect.height) * 100;
+            sigPlacementPreview.querySelectorAll('.sig-pin').forEach(function (p) { p.remove(); });
+            var pin = document.createElement('div');
+            pin.className = 'sig-pin';
+            pin.style.left = xPct + '%';
+            pin.style.top = yPct + '%';
+            pin.textContent = '✍️';
+            pageElRef.appendChild(pin);
+            sigPlacementValue = { page: pageNum, xPct: xPct, yPct: yPct };
+            sigPlacementStatus.textContent = '✓ Poziția setată pe pagina ' + pageNum + '.';
+            sigPlacementClearBtn.style.display = '';
+          });
+        })(i, pageEl, canvas);
+      }
+      if (pdf.numPages > maxPages) {
+        var note = document.createElement('div');
+        note.className = 'state-msg';
+        note.textContent = '(' + (pdf.numPages - maxPages) + ' pagini omise aici — dacă locul semnăturii e mai departe în document, previzualizarea nu ajunge acolo)';
+        sigPlacementPreview.appendChild(note);
+      }
+    } catch (err) {
+      sigPlacementPreview.innerHTML = '<div class="state-msg error">Nu s-a putut încărca previzualizarea: ' + escapeHtml(err.message || String(err)) + '</div>';
+    }
+  }
+
+  sigPlacementToggle.addEventListener('click', renderSigPlacementPreviewIfNeeded);
 
   function addFilesToStaging(fileList) {
     Array.prototype.slice.call(fileList || []).forEach(function (f) {
@@ -2080,7 +2240,7 @@
     return file.type === 'application/pdf' || file.type.indexOf('image/') === 0;
   }
 
-  async function uploadOneDocument(file, driverId, type, date, validUntil, index) {
+  async function uploadOneDocument(file, driverId, type, date, validUntil, index, sigPlacement) {
     var fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
     var fileBuffer = await file.arrayBuffer();
     var fileHash = await sha256HexFromBuffer(fileBuffer);
@@ -2099,6 +2259,9 @@
       doc_type: type,
       doc_date: date,
       valid_until: validUntil || null,
+      signature_page: sigPlacement ? sigPlacement.page : null,
+      signature_x_pct: sigPlacement ? sigPlacement.xPct : null,
+      signature_y_pct: sigPlacement ? sigPlacement.yPct : null,
       file_path: filePath,
       file_type: fileType,
       file_hash: fileHash,
@@ -2139,7 +2302,7 @@
       var uploaded = [];
       for (var i = 0; i < files.length; i++) {
         submitDocBtn.textContent = files.length > 1 ? 'Se încarcă (' + (i + 1) + '/' + files.length + ')…' : 'Se încarcă…';
-        uploaded.push(await uploadOneDocument(files[i], driverId, type, date, validUntil, i));
+        uploaded.push(await uploadOneDocument(files[i], driverId, type, date, validUntil, i, sigPlacementValue));
       }
 
       if (uploaded.length === 1) {
