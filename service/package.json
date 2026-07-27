@@ -1,0 +1,16 @@
+{
+  "name": "comisigner-anexa-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-side generator for COMILGA CIM anexe: fills a .docx template, renders it to PDF via LibreOffice, and stamps the worker's signature.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "gen:sample": "node scripts/sample.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1"
+  }
+}
