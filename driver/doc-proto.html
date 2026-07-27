@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ComiSigner · Prototip document → șablon semnat</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --card: #171b21;
+    --card-2: #1e242c;
+    --line: #2a323d;
+    --ink: #e8edf2;
+    --muted: #9aa7b4;
+    --accent: #4f8cff;
+    --accent-ink: #ffffff;
+    --ok: #35c98a;
+    --warn: #f0b429;
+    --danger: #ff6b6b;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 18px 16px 64px; }
+  header h1 { font-size: 20px; margin: 6px 0 2px; }
+  header p { color: var(--muted); margin: 0 0 8px; font-size: 14px; }
+  .proto-badge {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    color: #201700; background: var(--warn); padding: 2px 8px; border-radius: 999px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; margin: 14px 0;
+  }
+  .card.dim { opacity: .5; pointer-events: none; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 999px; background: var(--accent);
+    color: var(--accent-ink); font-size: 13px; font-weight: 700; margin-right: 8px;
+  }
+  .card h2 { font-size: 16px; margin: 0 0 10px; display: flex; align-items: center; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], select {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card-2); color: var(--ink); font: inherit;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 460px) { .grid2 { grid-template-columns: 1fr; } }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border: none;
+    border-radius: 10px; padding: 12px 16px;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { background: #2a323d; color: #667; cursor: not-allowed; }
+  .btn-ghost { background: var(--card-2); color: var(--ink); border: 1px solid var(--line); }
+  .drop {
+    border: 1.5px dashed var(--line); border-radius: 12px; padding: 22px 14px;
+    text-align: center; color: var(--muted); background: var(--card-2);
+  }
+  .drop strong { color: var(--ink); }
+  #docPreview { max-width: 100%; border-radius: 10px; margin-top: 12px; display: none; }
+  canvas.doc-canvas { width: 100%; border-radius: 10px; border: 1px solid var(--line); background: #fff; display: block; }
+  .sigwrap { position: relative; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+  #sigPad { width: 100%; height: 180px; display: block; touch-action: none; border-radius: 10px; }
+  .sig-hint { position: absolute; left: 12px; bottom: 8px; color: #b9c2cc; font-size: 13px; pointer-events: none; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row > * { flex: 1; }
+  .progress { height: 6px; background: var(--card-2); border-radius: 999px; overflow: hidden; margin-top: 10px; display: none; }
+  .progress > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+  .status.err { color: var(--danger); }
+  .status.ok { color: var(--ok); }
+  .hidden { display: none !important; }
+  .note { font-size: 12.5px; color: var(--muted); background: var(--card-2); border-radius: 10px; padding: 10px 12px; margin-top: 12px; }
+  a.dl { display: block; text-align: center; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="proto-badge">PROTOTIP</span>
+    <h1>Document → șablon semnat</h1>
+    <p>Concept: se încarcă un document cunoscut (buletin, factură…), Tesseract îi citește textul, se extrag câmpurile, iar din ele se generează un <strong>document-șablon nou</strong> cu locul semnăturii fix. Se semnează șablonul.</p>
+  </header>
+
+  <!-- STEP 1 -->
+  <section class="card" id="card1">
+    <h2><span class="step-num">1</span> Alege tipul și încarcă documentul</h2>
+    <label for="docType">Tip document</label>
+    <select id="docType"></select>
+
+    <label for="docFile" class="drop" id="dropLabel" style="margin-top:12px">
+      <strong>Apasă pentru a fotografia</strong> sau alege o poză/scan a documentului.<br>
+      <span style="font-size:12.5px">Lumină uniformă, fără reflexii, tot documentul în cadru.</span>
+    </label>
+    <input id="docFile" type="file" accept="image/*" capture="environment" class="hidden">
+    <img id="docPreview" alt="Document">
+    <div class="progress" id="ocrProgress"><i></i></div>
+    <div class="status" id="ocrStatus"></div>
+    <button class="btn-primary" id="readBtn" style="margin-top:12px" disabled>Citește datele</button>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="card dim" id="card2">
+    <h2><span class="step-num">2</span> Verifică datele</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 6px">Citirea automată nu e mereu perfectă — verifică și corectează înainte de a genera documentul.</p>
+    <div id="fieldsContainer"></div>
+    <button class="btn-primary" id="genBtn" style="margin-top:14px">Generează documentul</button>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="card dim" id="card3">
+    <h2><span class="step-num">3</span> Semnează documentul generat</h2>
+    <canvas class="doc-canvas" id="docCanvas"></canvas>
+    <label style="margin-top:14px">Semnătura</label>
+    <div class="sigwrap">
+      <canvas id="sigPad"></canvas>
+      <span class="sig-hint" id="sigHint">Semnează cu degetul aici</span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn-ghost" id="clearSigBtn">Șterge</button>
+      <button class="btn-primary" id="signBtn" disabled>Aplică semnătura</button>
+    </div>
+    <div class="status" id="signStatus"></div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="card dim" id="card4">
+    <h2><span class="step-num">4</span> Document semnat</h2>
+    <canvas class="doc-canvas" id="finalCanvas"></canvas>
+    <a class="btn-primary dl" id="dlLink" style="margin-top:14px" download="document-semnat.pdf">Descarcă PDF</a>
+    <div class="note">
+      Semnătura stă în dreptunghiul fixat din șablonul acelui tip de document — coordonate exacte, nu detectate.
+      Fiecare tip cunoscut are propriul șablon; a adăuga un tip nou = un extractor + un șablon.
+    </div>
+  </section>
+
+  <div class="note">
+    Note pentru echipă (prototip): șabloanele sunt exemple-substitut. Când Alex confirmă documentele reale și
+    câmpurile lor, se schimbă doar definiția fiecărui tip din <code>DOC_TYPES</code> — fluxul (citire → verificare →
+    generare → semnare → plasare fixă) rămâne la fel. Integrarea în birou reintră prin <code>uploadOneDocument()</code>:
+    PDF-ul generat e „fișierul", iar dreptunghiul semnăturii se scrie în <code>signature_x_pct/y_pct</code>.
+    Diacriticele din PDF sunt transliterate (font standard) — la versiunea reală vom încorpora un font Unicode.
+  </div>
+</div>
+
+<script src="vendor/signature_pad.umd.min.js"></script>
+<script src="vendor/tesseract/tesseract.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var PDFLib = window.PDFLib;
+
+  // =========================================================================
+  // Shared text helpers
+  // =========================================================================
+  function cleanMrzWords(s) { return (s || '').replace(/</g, ' ').replace(/\s+/g, ' ').trim(); }
+  function titleCase(s) {
+    return (s || '').toLowerCase().replace(/(^|[\s\-])([a-zăâîșț])/g, function (_, sep, ch) { return sep + ch.toUpperCase(); });
+  }
+  function yymmddToDate(s) {
+    var yy = parseInt(s.slice(0, 2), 10), mm = s.slice(2, 4), dd = s.slice(4, 6);
+    var nowYY = new Date().getFullYear() % 100;
+    var year = yy > nowYY ? 1900 + yy : 2000 + yy; // birth date heuristic
+    return dd + '.' + mm + '.' + year;
+  }
+  function firstDate(text) {
+    var m = text.match(/(\d{2})[.\-\/ ](\d{2})[.\-\/ ](\d{4})/);
+    return m ? m[1] + '.' + m[2] + '.' + m[3] : '';
+  }
+  // Transliterate RO diacritics + drop anything the standard (WinAnsi) font can't encode,
+  // so PDFLib never throws. The real version will embed a Unicode font instead.
+  function pdfSafe(s) {
+    return String(s == null ? '' : s)
+      .replace(/[ăâĂÂ]/g, function (c) { return /[ăâ]/.test(c) ? 'a' : 'A'; })
+      .replace(/[î]/g, 'i').replace(/[Î]/g, 'I')
+      .replace(/[șşȘŞ]/g, function (c) { return /[șş]/.test(c) ? 's' : 'S'; })
+      .replace(/[țţȚŢ]/g, function (c) { return /[țţ]/.test(c) ? 't' : 'T'; })
+      .replace(/[„”“]/g, '"').replace(/[’‘]/g, "'").replace(/[–—]/g, '-')
+      .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+  }
+
+  // A tiny layout helper so each template stays short and never overlaps: bold label on the
+  // left, value in a fixed right column, rows stepped by a fixed height.
+  function makeLayout(page, font, bold) {
+    var margin = 56, labelX = margin, valueX = margin + 160, y = 792;
+    var black = PDFLib.rgb(0.08, 0.09, 0.11), gray = PDFLib.rgb(0.45, 0.48, 0.52);
+    function text(s, x, yy, opts) {
+      opts = opts || {};
+      page.drawText(pdfSafe(s), { x: x, y: yy, size: opts.size || 11, font: opts.bold ? bold : font, color: opts.color || black });
+    }
+    return {
+      margin: margin, gray: gray, black: black,
+      heading: function (title, sub) {
+        text(title, labelX, y, { size: 16, bold: true }); y -= 18;
+        if (sub) { text(sub, labelX, y, { size: 9, color: gray }); y -= 16; }
+        y -= 16;
+      },
+      para: function (s) { text(s, labelX, y, { size: 11 }); y -= 20; },
+      field: function (label, value) {
+        text(label, labelX, y, { bold: true });
+        text(value && String(value).trim() ? value : '—', valueX, y, { size: 11 });
+        y -= 26;
+      },
+      gap: function (n) { y -= (n || 12); },
+      // Fixed signature block near the bottom — returns the exact rect (PDF points).
+      signature: function () {
+        var sigW = 180, sigH = 60, sigX = margin, sigLineY = 120;
+        page.drawLine({ start: { x: sigX, y: sigLineY }, end: { x: sigX + sigW, y: sigLineY }, thickness: 0.8, color: gray });
+        text('Semnatura', sigX, sigLineY - 16, { size: 10, color: gray });
+        text('Data: ______________', sigX + 260, sigLineY - 16, { size: 10, color: gray });
+        return { x: sigX, y: sigLineY + 4, w: sigW, h: sigH };
+      }
+    };
+  }
+
+  // =========================================================================
+  // Document-type registry — the heart of "everything by template".
+  // Each type: what languages to OCR in, which fields it has, how to pull them
+  // from the OCR text, and how to draw its template (returns the signature rect).
+  // Add a type = add one entry. Nothing else changes.
+  // =========================================================================
+  var DOC_TYPES = {
+    buletin: {
+      label: 'Buletin de identitate',
+      langs: 'ron+eng',
+      fields: [
+        { key: 'nume', label: 'Nume' },
+        { key: 'prenume', label: 'Prenume' },
+        { key: 'idnp', label: 'IDNP (cod personal)' },
+        { key: 'serie', label: 'Serie și număr' },
+        { key: 'data', label: 'Data nașterii' },
+        { key: 'sex', label: 'Sex' }
+      ],
+      extract: function (text) {
+        var out = { nume: '', prenume: '', idnp: '', serie: '', data: '', sex: '' };
+        var rawLines = text.split(/\r?\n/);
+        // Moldovan buletin = TD1 MRZ: three ~30-char lines of [A-Z0-9<]. Identify each line
+        // by its own shape (OCR can drop/reorder them).
+        var mrz = rawLines
+          .map(function (l) { return l.replace(/\s+/g, '').toUpperCase(); })
+          .filter(function (l) { return l.length >= 20 && /^[A-Z0-9<]+$/.test(l) && l.indexOf('<') !== -1; });
+        function letterCount(l) { return (l.match(/[A-Z]/g) || []).length; }
+
+        // Need >=2 MRZ lines before trusting it — one noisy line from a front-side photo
+        // otherwise yields garbage.
+        if (mrz.length >= 2) {
+          var dateLine = mrz.filter(function (l) { return /^\d{6}\d[MFX<]\d{6}\d/.test(l); })[0];
+          if (dateLine) {
+            var dm = dateLine.match(/^(\d{6})\d([MFX<])/);
+            if (dm) { out.data = yymmddToDate(dm[1]); out.sex = dm[2] === 'M' ? 'M' : (dm[2] === 'F' ? 'F' : ''); }
+          }
+          var nameLine = mrz
+            .filter(function (l) { return l !== dateLine && l.indexOf('<<') !== -1 && letterCount(l) >= 3; })
+            .sort(function (a, b) { return letterCount(b) - letterCount(a); })[0];
+          if (nameLine) {
+            var parts = nameLine.split('<<');
+            out.nume = cleanMrzWords(parts[0]);
+            out.prenume = cleanMrzWords(parts.slice(1).join(' '));
+          }
+          var docLine = mrz.filter(function (l) { return l !== dateLine && l !== nameLine; })[0];
+          if (docLine) { var serie = docLine.substring(5, 14).replace(/</g, ''); if (serie) out.serie = serie; }
+        }
+        var flat = text.replace(/[^0-9\n]/g, ' ');
+        out.idnp = (text.match(/\b\d{13}\b/) || flat.match(/\b\d{13}\b/) || [''])[0];
+        if (!out.data) {
+          var labelled = text.match(/(?:na[sșş]ter|naiss|birth)[^\d]{0,24}(\d{2})[.\-\/ ](\d{2})[.\-\/ ](\d{4})/i);
+          if (labelled) out.data = labelled[1] + '.' + labelled[2] + '.' + labelled[3];
+          else out.data = firstDate(text);
+        }
+        if (!out.nume || !out.prenume) {
+          var nm = text.match(/Nume[^A-Za-zĂÂÎȘȚ]*([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\- ]{1,40})/);
+          var pm = text.match(/Prenume[^A-Za-zĂÂÎȘȚ]*([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\- ]{1,40})/);
+          if (nm && !out.nume) out.nume = nm[1].trim();
+          if (pm && !out.prenume) out.prenume = pm[1].trim();
+        }
+        out.nume = titleCase(out.nume); out.prenume = titleCase(out.prenume);
+        return out;
+      },
+      generate: function (L, v) {
+        L.heading('DECLARATIE / ACT DE CONFIRMARE', '(document-model - prototip ComiSigner)');
+        L.para('Subsemnatul(a), identificat(a) prin actul de identitate:');
+        L.gap(8);
+        L.field('Nume, prenume', (v.nume + ' ' + v.prenume).trim());
+        L.field('IDNP', v.idnp);
+        L.field('Serie si numar', v.serie);
+        L.field('Data nasterii', v.data);
+        L.field('Sex', v.sex);
+        L.gap(16);
+        L.para('Confirm prin semnatura de mai jos corectitudinea datelor de mai sus');
+        L.para('si primirea/predarea marfii conform documentelor insotitoare.');
+        return L.signature();
+      }
+    },
+
+    factura: {
+      label: 'Factură',
+      langs: 'ron+eng+rus',
+      fields: [
+        { key: 'furnizor', label: 'Furnizor' },
+        { key: 'cumparator', label: 'Cumpărător' },
+        { key: 'numar', label: 'Număr factură' },
+        { key: 'data', label: 'Data' },
+        { key: 'suma', label: 'Sumă totală' }
+      ],
+      extract: function (text) {
+        var out = { furnizor: '', cumparator: '', numar: '', data: '', suma: '' };
+        // Require the captured token to contain a digit (invoice numbers do) so "FACTURA
+        // FISCALA" doesn't capture the word "FISCALA" instead of the real number after "nr.".
+        var nr = text.match(/(?:nr\.?|num[ăa]r|factur[ăa])[^A-Za-z0-9]{0,4}((?=[A-Z0-9\-\/]*\d)[A-Z0-9][A-Z0-9\-\/]{2,20})/i);
+        if (nr) out.numar = nr[1];
+        out.data = firstDate(text);
+        var suma = text.match(/(?:total(?:\s*de\s*plat[ăa])?|suma)[^\d]{0,15}([\d][\d.,\s]*\d)/i);
+        if (suma) out.suma = suma[1].replace(/\s/g, '');
+        var furn = text.match(/(?:furnizor|vânz[ăa]tor|seller)[^A-Za-zĂÂÎȘȚ0-9]{0,6}([^\n]{2,50})/i);
+        if (furn) out.furnizor = furn[1].trim();
+        var cump = text.match(/(?:cump[ăa]r[ăa]tor|client|buyer)[^A-Za-zĂÂÎȘȚ0-9]{0,6}([^\n]{2,50})/i);
+        if (cump) out.cumparator = cump[1].trim();
+        return out;
+      },
+      generate: function (L, v) {
+        L.heading('CONFIRMARE PRIMIRE FACTURA', '(document-model - prototip ComiSigner)');
+        L.para('Confirm primirea marfii conform facturii de mai jos:');
+        L.gap(8);
+        L.field('Furnizor', v.furnizor);
+        L.field('Cumparator', v.cumparator);
+        L.field('Numar factura', v.numar);
+        L.field('Data', v.data);
+        L.field('Suma totala', v.suma);
+        L.gap(16);
+        L.para('Marfa a fost primita in cantitatea si calitatea din factura.');
+        return L.signature();
+      }
+    }
+  };
+
+  // =========================================================================
+  // DOM + state
+  // =========================================================================
+  var els = {
+    docType: document.getElementById('docType'),
+    file: document.getElementById('docFile'),
+    preview: document.getElementById('docPreview'),
+    readBtn: document.getElementById('readBtn'),
+    ocrProgress: document.getElementById('ocrProgress'),
+    ocrProgressBar: document.querySelector('#ocrProgress > i'),
+    ocrStatus: document.getElementById('ocrStatus'),
+    card2: document.getElementById('card2'),
+    card3: document.getElementById('card3'),
+    card4: document.getElementById('card4'),
+    fieldsContainer: document.getElementById('fieldsContainer'),
+    genBtn: document.getElementById('genBtn'),
+    docCanvas: document.getElementById('docCanvas'),
+    sigPad: document.getElementById('sigPad'),
+    sigHint: document.getElementById('sigHint'),
+    clearSigBtn: document.getElementById('clearSigBtn'),
+    signBtn: document.getElementById('signBtn'),
+    signStatus: document.getElementById('signStatus'),
+    finalCanvas: document.getElementById('finalCanvas'),
+    dlLink: document.getElementById('dlLink')
+  };
+  var state = { imgDataUrl: null, basePdfBytes: null, signedPdfBytes: null, sigRect: null };
+
+  function currentType() { return DOC_TYPES[els.docType.value]; }
+  function setStatus(el, msg, cls) { el.textContent = msg; el.className = 'status' + (cls ? ' ' + cls : ''); }
+
+  // Populate type dropdown + render the (empty) field inputs for the default type.
+  Object.keys(DOC_TYPES).forEach(function (id) {
+    var opt = document.createElement('option');
+    opt.value = id; opt.textContent = DOC_TYPES[id].label;
+    els.docType.appendChild(opt);
+  });
+  function renderFields(values) {
+    values = values || {};
+    var type = currentType();
+    els.fieldsContainer.innerHTML = '';
+    var pairs = [];
+    for (var i = 0; i < type.fields.length; i += 2) pairs.push(type.fields.slice(i, i + 2));
+    pairs.forEach(function (pair) {
+      var grid = document.createElement('div');
+      grid.className = 'grid2';
+      pair.forEach(function (f) {
+        var cell = document.createElement('div');
+        var lab = document.createElement('label'); lab.textContent = f.label;
+        var inp = document.createElement('input'); inp.type = 'text'; inp.id = 'f_' + f.key;
+        inp.value = values[f.key] || '';
+        cell.appendChild(lab); cell.appendChild(inp); grid.appendChild(cell);
+      });
+      els.fieldsContainer.appendChild(grid);
+    });
+  }
+  els.docType.addEventListener('change', function () { renderFields({}); });
+  renderFields({});
+
+  // =========================================================================
+  // pdf.js — preview generated PDFs on canvas (same vendored copy as the app)
+  // =========================================================================
+  var pdfjsPromise = null;
+  function loadPdfjs() {
+    if (!pdfjsPromise) {
+      pdfjsPromise = import('./vendor/pdfjs/pdf.min.mjs').then(function (lib) {
+        lib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.mjs';
+        return lib;
+      });
+    }
+    return pdfjsPromise;
+  }
+  async function renderPdfToCanvas(bytes, canvas) {
+    var pdfjs = await loadPdfjs();
+    var doc = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+    var page = await doc.getPage(1);
+    var dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+    var cssWidth = canvas.clientWidth || 560;
+    var unscaled = page.getViewport({ scale: 1 });
+    var scale = (cssWidth / unscaled.width) * dpr;
+    var viewport = page.getViewport({ scale: scale });
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    canvas.style.height = (viewport.height / dpr) + 'px';
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+  }
+
+  // =========================================================================
+  // STEP 1 — pick file + OCR
+  // =========================================================================
+  els.file.addEventListener('change', function () {
+    var f = els.file.files && els.file.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      state.imgDataUrl = reader.result;
+      els.preview.src = reader.result; els.preview.style.display = 'block';
+      els.readBtn.disabled = false; setStatus(els.ocrStatus, '', '');
+    };
+    reader.readAsDataURL(f);
+  });
+
+  var workers = {}; // cached per language string
+  async function getWorker(langs) {
+    if (!workers[langs]) {
+      workers[langs] = await Tesseract.createWorker(langs, 1, {
+        workerPath: 'vendor/tesseract/worker.min.js',
+        corePath: 'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+        langPath: 'vendor/tesseract/lang-data',
+        logger: function (m) {
+          if (m.status === 'recognizing text' && typeof m.progress === 'number') {
+            els.ocrProgressBar.style.width = Math.round(m.progress * 100) + '%';
+          }
+        }
+      });
+    }
+    return workers[langs];
+  }
+
+  els.readBtn.addEventListener('click', async function () {
+    if (!state.imgDataUrl) return;
+    var type = currentType();
+    els.readBtn.disabled = true;
+    els.ocrProgress.style.display = 'block'; els.ocrProgressBar.style.width = '0%';
+    setStatus(els.ocrStatus, 'Se citește documentul…', '');
+    try {
+      var worker = await getWorker(type.langs);
+      var res = await worker.recognize(state.imgDataUrl);
+      var values = type.extract((res && res.data && res.data.text) || '');
+      renderFields(values);
+      setStatus(els.ocrStatus, 'Gata — verifică datele mai jos.', 'ok');
+      els.card2.classList.remove('dim');
+      els.card2.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      setStatus(els.ocrStatus, 'Nu am putut citi automat. Poți completa manual mai jos.', 'err');
+      els.card2.classList.remove('dim');
+    } finally {
+      els.ocrProgress.style.display = 'none'; els.readBtn.disabled = false;
+    }
+  });
+
+  // =========================================================================
+  // STEP 2 — generate the template for the chosen type
+  // =========================================================================
+  els.genBtn.addEventListener('click', async function () {
+    els.genBtn.disabled = true;
+    try {
+      var type = currentType();
+      var values = {};
+      type.fields.forEach(function (f) { values[f.key] = (document.getElementById('f_' + f.key) || {}).value || ''; });
+
+      var doc = await PDFLib.PDFDocument.create();
+      var page = doc.addPage([595.28, 841.89]); // A4 in points
+      var font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+      var bold = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+      var L = makeLayout(page, font, bold);
+      state.sigRect = type.generate(L, values); // the type draws its template + returns the fixed sig rect
+
+      state.basePdfBytes = await doc.save();
+      await renderPdfToCanvas(state.basePdfBytes, els.docCanvas);
+      els.card3.classList.remove('dim');
+      setupSignaturePad();
+      els.card3.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      alert('Eroare la generarea documentului: ' + (e && e.message ? e.message : e));
+    } finally {
+      els.genBtn.disabled = false;
+    }
+  });
+
+  // =========================================================================
+  // STEP 3 — sign + stamp at the fixed rect
+  // =========================================================================
+  var signaturePad = null;
+  function setupSignaturePad() {
+    if (signaturePad) return;
+    var canvas = els.sigPad;
+    function resize() {
+      var ratio = Math.max(window.devicePixelRatio || 1, 1);
+      canvas.width = canvas.offsetWidth * ratio;
+      canvas.height = canvas.offsetHeight * ratio;
+      canvas.getContext('2d').scale(ratio, ratio);
+      if (signaturePad) signaturePad.clear();
+    }
+    signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(0,0,0,0)', penColor: 'rgb(20,20,20)' });
+    signaturePad.addEventListener('beginStroke', function () {
+      els.sigHint.style.display = 'none'; els.signBtn.disabled = false;
+    });
+    window.addEventListener('resize', resize);
+    resize();
+  }
+  els.clearSigBtn.addEventListener('click', function () {
+    if (signaturePad) signaturePad.clear();
+    els.sigHint.style.display = 'block'; els.signBtn.disabled = true;
+  });
+  els.signBtn.addEventListener('click', async function () {
+    if (!signaturePad || signaturePad.isEmpty() || !state.basePdfBytes) return;
+    els.signBtn.disabled = true;
+    setStatus(els.signStatus, 'Se aplică semnătura…', '');
+    try {
+      var pdfDoc = await PDFLib.PDFDocument.load(state.basePdfBytes);
+      var png = await pdfDoc.embedPng(signaturePad.toDataURL('image/png'));
+      var page = pdfDoc.getPages()[0];
+      var r = state.sigRect;
+      var scale = Math.min(r.w / png.width, r.h / png.height);
+      page.drawImage(png, { x: r.x, y: r.y, width: png.width * scale, height: png.height * scale });
+
+      state.signedPdfBytes = await pdfDoc.save();
+      await renderPdfToCanvas(state.signedPdfBytes, els.finalCanvas);
+      els.dlLink.href = URL.createObjectURL(new Blob([state.signedPdfBytes], { type: 'application/pdf' }));
+      setStatus(els.signStatus, 'Gata.', 'ok');
+      els.card4.classList.remove('dim');
+      els.card4.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      setStatus(els.signStatus, 'Eroare: ' + (e && e.message ? e.message : e), 'err');
+      els.signBtn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>
