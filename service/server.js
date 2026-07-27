@@ -4,6 +4,17 @@ const { generateAnexa } = require('./lib/generate');
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
+// CORS — the office (a browser app on a different origin) calls this service directly.
+// Set ALLOW_ORIGIN to the office origin in production; defaults to * for local/dev.
+const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || '*';
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', ALLOW_ORIGIN);
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 // POST /generate/anexa5

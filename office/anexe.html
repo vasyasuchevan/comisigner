@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ComiSigner · Generare anexe CIM</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--line:#e3e6ea;--ink:#1b2733;--muted:#6b7783;--accent:#2f6bff;--accent-ink:#fff;--ok:#127a4b;--okbg:#e5f5ec;--err:#c0392b;--errbg:#fdecea;--radius:12px;}
+  *{box-sizing:border-box;}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 64px;}
+  h1{font-size:20px;margin:4px 0 2px;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 14px;}
+  a{color:var(--accent);}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:12px 0;}
+  h2{font-size:15px;margin:0 0 10px;}
+  .step{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:var(--accent);color:#fff;font-size:12px;font-weight:700;margin-right:8px;}
+  label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px;}
+  input[type=text],select{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:460px){.grid2{grid-template-columns:1fr;}}
+  button{font:inherit;font-weight:600;cursor:pointer;border:none;border-radius:9px;padding:11px 14px;}
+  .btn{background:var(--accent);color:var(--accent-ink);width:100%;}
+  .btn:disabled{background:#c7d0da;cursor:not-allowed;}
+  .btn-ghost{background:#eef1f5;color:var(--ink);}
+  .drop{border:1.4px dashed var(--line);border-radius:10px;padding:16px;text-align:center;color:var(--muted);background:#fafbfc;cursor:pointer;}
+  #idPreview{max-width:100%;border-radius:8px;margin-top:10px;display:none;}
+  .derived{font-size:12px;color:var(--ok);margin-top:2px;min-height:15px;}
+  .status{font-size:13px;margin-top:8px;min-height:18px;color:var(--muted);}
+  .status.ok{color:var(--ok);} .status.err{color:var(--err);}
+  .banner{padding:12px;border-radius:10px;margin:12px 0;font-size:14px;}
+  .banner.ok{background:var(--okbg);color:var(--ok);} .banner.err{background:var(--errbg);color:var(--err);}
+  .hidden{display:none!important;}
+  .progress{height:6px;background:#eef1f5;border-radius:999px;overflow:hidden;margin-top:10px;display:none;}
+  .progress>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s;}
+  .small{font-size:12px;color:var(--muted);}
+  .pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;background:#eef1f5;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Generare anexe CIM</h1>
+  <p class="sub">Citește actul de identitate al șoferului, completează automat anexa și o adaugă în dosarul lui. <a href="./">← înapoi la birou</a></p>
+
+  <div id="authBanner" class="banner err hidden">Nu ești autentificat. Deschide mai întâi <a href="./">panoul biroului</a> și loghează-te, apoi revino aici (sesiunea e comună).</div>
+
+  <div id="main" class="hidden">
+    <!-- STEP 1: driver + template -->
+    <section class="card">
+      <h2><span class="step">1</span> Șofer și anexă</h2>
+      <label>Șofer</label>
+      <select id="driverSel"><option value="">Se încarcă…</option></select>
+      <label style="margin-top:10px">Tip anexă</label>
+      <select id="tplSel"><option value="anexa5">Anexa 5 — Act adițional (drepturi bănești deplasare)</option></select>
+    </section>
+
+    <!-- STEP 2: read ID -->
+    <section class="card">
+      <h2><span class="step">2</span> Actul de identitate</h2>
+      <label for="idFile" class="drop" id="dropLabel"><strong>Alege o poză</strong> a actului (CI sau pașaport). Fotografiază partea cu MRZ.</label>
+      <input id="idFile" type="file" accept="image/*" class="hidden">
+      <img id="idPreview" alt="Act">
+      <div class="progress" id="ocrProgress"><i></i></div>
+      <div class="status" id="ocrStatus"></div>
+      <button class="btn-ghost" id="readBtn" style="width:100%;margin-top:10px" disabled>Citește datele</button>
+    </section>
+
+    <!-- STEP 3: verify + generate -->
+    <section class="card">
+      <h2><span class="step">3</span> Verifică și generează</h2>
+      <div style="margin-bottom:6px">Tip detectat: <span class="pill" id="typePill">—</span></div>
+      <div class="grid2">
+        <div><label>Nume</label><input type="text" id="fNume"></div>
+        <div><label>Prenume</label><input type="text" id="fPrenume"></div>
+      </div>
+      <div class="grid2">
+        <div><label>CNP</label><input type="text" id="fCnp" inputmode="numeric"><div class="derived" id="cnpDerived"></div></div>
+        <div><label>Serie și număr (CI)</label><input type="text" id="fSerieNr"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Nr. CIM (din contract)</label><input type="text" id="fCimNr" placeholder="ex. 482"></div>
+        <div><label>Data CIM</label><input type="text" id="fCimData" placeholder="ZZ.LL.AAAA"></div>
+      </div>
+      <p class="small" style="margin:8px 0 0">Numărul de înregistrare/act se atribuie automat. Semnătura reală a lucrătorului se adaugă la pasul următor al implementării.</p>
+      <button class="btn" id="genBtn" style="margin-top:12px" disabled>Generează și adaugă în dosar</button>
+      <div class="status" id="genStatus"></div>
+    </section>
+
+    <div id="resultBanner" class="banner ok hidden"></div>
+
+    <!-- Service config -->
+    <section class="card">
+      <h2>Configurare serviciu</h2>
+      <label>URL serviciu generator (LibreOffice)</label>
+      <input type="text" id="svcUrl" placeholder="http://localhost:8080">
+      <p class="small" style="margin:6px 0 0">Adresa serviciului <code>service/</code> (containerul cu LibreOffice). Se salvează local în acest browser.</p>
+    </section>
+  </div>
+</div>
+
+<script src="vendor/supabase.js"></script>
+<script src="vendor/tesseract/tesseract.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage }
+  });
+
+  // ---------- identity parsing (same logic as the driver id-reader) ----------
+  function titleCase(s){return (s||'').toLowerCase().replace(/(^|[\s\-])([a-zăâîșț])/g,function(_,sep,ch){return sep+ch.toUpperCase();});}
+  function cleanName(s){return (s||'').replace(/</g,' ').replace(/\s+/g,' ').trim();}
+  function yymmddToDate(s){var yy=+s.slice(0,2),mm=s.slice(2,4),dd=s.slice(4,6);var nowYY=new Date().getFullYear()%100;var y=yy>nowYY?1900+yy:2000+yy;return dd+'.'+mm+'.'+y;}
+  function sexFromMrz(c){return c==='M'?'M':(c==='F'?'F':'');}
+  function cnpInfo(cnp){
+    if(!/^\d{13}$/.test(cnp)) return null;
+    var s=+cnp[0]; var cent={1:1900,2:1900,3:1800,4:1800,5:2000,6:2000}[s];
+    var sex=(s>=1&&s<=8)?(s%2?'M':'F'):''; var info={sex:sex};
+    if(cent){var yy=+cnp.slice(1,3),mm=cnp.slice(3,5),dd=cnp.slice(5,7);if(+mm>=1&&+mm<=12&&+dd>=1&&+dd<=31)info.data=dd+'.'+mm+'.'+(cent+yy);}
+    return info;
+  }
+  function parseIdentity(text){
+    var out={tip:'',nume:'',prenume:'',cnp:'',serie:'',numar:'',data:'',sex:''};
+    var mrz=text.split(/\r?\n/).map(function(l){return l.replace(/\s+/g,'').toUpperCase();})
+      .filter(function(l){return l.length>=28&&/^[A-Z0-9<]+$/.test(l)&&l.indexOf('<')!==-1;});
+    var td3=mrz.filter(function(l){return l.length>=40;});
+    var td1=mrz.filter(function(l){return l.length>=28&&l.length<=32;});
+    if(td3.length>=2){
+      out.tip='pasaport';
+      var l1=td3.filter(function(l){return /^P[A-Z<]/.test(l)&&l.indexOf('<<')!==-1;})[0]||td3[0];
+      var l2=td3.filter(function(l){return l!==l1;})[0]||td3[1];
+      var nm=l1.slice(5).split('<<'); out.nume=cleanName(nm[0]); out.prenume=cleanName(nm.slice(1).join(' '));
+      out.numar=l2.slice(0,9).replace(/</g,''); out.data=yymmddToDate(l2.slice(13,19)); out.sex=sexFromMrz(l2[20]);
+      var personal=l2.slice(28,42).replace(/</g,''); var m=personal.match(/\d{13}/); if(m) out.cnp=m[0];
+    } else if(td1.length>=2){
+      out.tip='ci';
+      var lc=function(l){return (l.match(/[A-Z]/g)||[]).length;};
+      var dateLine=td1.filter(function(l){return /^\d{6}\d[MFX<]\d{6}\d/.test(l);})[0];
+      if(dateLine){var dm=dateLine.match(/^(\d{6})\d([MFX<])/);if(dm){out.data=yymmddToDate(dm[1]);out.sex=sexFromMrz(dm[2]);}}
+      var nameLine=td1.filter(function(l){return l!==dateLine&&l.indexOf('<<')!==-1&&lc(l)>=3;}).sort(function(a,b){return lc(b)-lc(a);})[0];
+      if(nameLine){var p=nameLine.split('<<');out.nume=cleanName(p[0]);out.prenume=cleanName(p.slice(1).join(' '));}
+      var docLine=td1.filter(function(l){return l!==dateLine&&l!==nameLine;})[0];
+      if(docLine){out.numar=docLine.substring(5,14).replace(/</g,'');}
+    }
+    if(!out.cnp){var c=text.match(/\b\d{13}\b/); if(c) out.cnp=c[0];}
+    var sn=text.match(/seria\s*([A-Z]{2})\s*nr\.?\s*(\d{6})/i);
+    if(sn){out.serie=sn[1].toUpperCase(); if(!out.numar) out.numar=sn[2];}
+    if(out.tip==='ci' && !out.serie && /^[A-Z]{2}\d/.test(out.numar)){ out.serie=out.numar.slice(0,2); out.numar=out.numar.slice(2); }
+    if(!out.nume){var nmf=text.match(/(?:Nume|Nom|Last[ \t]*name)\b[ \t:\/]{0,4}([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30}(?:[ \t]+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30})?)/); if(nmf) out.nume=nmf[1].trim();}
+    if(!out.prenume){var pmf=text.match(/(?:Prenume|Prénom|Prenom|First[ \t]*name)\b[ \t:\/]{0,4}([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30}(?:[ \t]+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30})?)/); if(pmf) out.prenume=pmf[1].trim();}
+    var ci=cnpInfo(out.cnp); if(ci){ if(ci.data) out.data=ci.data; if(ci.sex) out.sex=ci.sex; }
+    out.nume=titleCase(out.nume); out.prenume=titleCase(out.prenume);
+    return out;
+  }
+
+  // ---------- helpers ----------
+  var $ = function(id){ return document.getElementById(id); };
+  function setStatus(el, m, c){ el.textContent = m; el.className = 'status' + (c ? ' ' + c : ''); }
+  function todayRo(){ var d=new Date(),p=function(n){return String(n).padStart(2,'0');}; return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear(); }
+  async function sha256Hex(buf){ var h=await crypto.subtle.digest('SHA-256',buf); return Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,'0');}).join(''); }
+
+  var els = ['driverSel','tplSel','idFile','idPreview','ocrProgress','ocrStatus','readBtn','typePill','fNume','fPrenume','fCnp','fSerieNr','fCimNr','fCimData','genBtn','genStatus','resultBanner','svcUrl','cnpDerived']
+    .reduce(function(o,id){o[id]=$(id);return o;},{});
+  els.ocrBar = document.querySelector('#ocrProgress>i');
+  var imgDataUrl = null;
+
+  // ---------- boot: check session, load drivers ----------
+  (async function boot(){
+    var sess = await sb.auth.getSession();
+    if (!sess.data.session){ $('authBanner').classList.remove('hidden'); return; }
+    $('main').classList.remove('hidden');
+    els.svcUrl.value = localStorage.getItem('anexa_svc_url') || 'http://localhost:8080';
+    els.svcUrl.addEventListener('change', function(){ localStorage.setItem('anexa_svc_url', els.svcUrl.value.trim()); });
+    var res = await sb.from('drivers').select('id, full_name').order('full_name');
+    if (res.error){ els.driverSel.innerHTML = '<option value="">Eroare la încărcarea șoferilor</option>'; return; }
+    els.driverSel.innerHTML = '<option value="">— alege un șofer —</option>' +
+      (res.data||[]).map(function(d){ return '<option value="'+d.id+'">'+ (d.full_name||d.id) +'</option>'; }).join('');
+    els.driverSel.addEventListener('change', updateGenEnabled);
+  })();
+
+  function updateGenEnabled(){
+    els.genBtn.disabled = !(els.driverSel.value && (els.fNume.value.trim() || els.fCnp.value.trim()));
+  }
+  ['fNume','fCnp'].forEach(function(id){ els[id].addEventListener('input', updateGenEnabled); });
+  els.fCnp.addEventListener('input', function(){
+    var ci=cnpInfo(els.fCnp.value.trim());
+    els.cnpDerived.textContent = ci&&(ci.data||ci.sex) ? ('din CNP: '+(ci.data||'—')+(ci.sex?', '+ci.sex:'')) : '';
+  });
+
+  // ---------- step 2: OCR ----------
+  els.idFile.addEventListener('change', function(){
+    var f=els.idFile.files&&els.idFile.files[0]; if(!f) return;
+    var r=new FileReader(); r.onload=function(){imgDataUrl=r.result;els.idPreview.src=r.result;els.idPreview.style.display='block';els.readBtn.disabled=false;setStatus(els.ocrStatus,'','');}; r.readAsDataURL(f);
+  });
+  var worker=null;
+  async function getWorker(){
+    if(!worker){worker=await Tesseract.createWorker('ron+eng',1,{workerPath:'vendor/tesseract/worker.min.js',corePath:'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',langPath:'vendor/tesseract/lang-data',logger:function(m){if(m.status==='recognizing text'&&typeof m.progress==='number')els.ocrBar.style.width=Math.round(m.progress*100)+'%';}});}
+    return worker;
+  }
+  var TYPE_LABEL={ci:'Carte de identitate',pasaport:'Pașaport'};
+  els.readBtn.addEventListener('click', async function(){
+    if(!imgDataUrl) return;
+    els.readBtn.disabled=true; els.ocrProgress.style.display='block'; els.ocrBar.style.width='0%'; setStatus(els.ocrStatus,'Se citește actul…','');
+    try{
+      var w=await getWorker(); var res=await w.recognize(imgDataUrl); var v=parseIdentity((res&&res.data&&res.data.text)||'');
+      els.fNume.value=v.nume||''; els.fPrenume.value=v.prenume||''; els.fCnp.value=v.cnp||'';
+      els.fSerieNr.value=[v.serie,v.numar].filter(Boolean).join(' ');
+      els.typePill.textContent=TYPE_LABEL[v.tip]||'Nedetectat';
+      els.fCnp.dispatchEvent(new Event('input'));
+      setStatus(els.ocrStatus,'Gata — verifică datele.','ok');
+    }catch(e){ setStatus(els.ocrStatus,'Nu am putut citi automat. Completează manual.','err'); }
+    finally{ els.ocrProgress.style.display='none'; els.readBtn.disabled=false; updateGenEnabled(); }
+  });
+
+  // ---------- step 3: generate + upload ----------
+  els.genBtn.addEventListener('click', async function(){
+    var driverId=els.driverSel.value; var svc=(els.svcUrl.value||'').trim().replace(/\/$/,'');
+    if(!driverId){ setStatus(els.genStatus,'Alege un șofer.','err'); return; }
+    if(!svc){ setStatus(els.genStatus,'Setează URL-ul serviciului.','err'); return; }
+    els.genBtn.disabled=true; els.resultBanner.classList.add('hidden'); setStatus(els.genStatus,'Se atribuie numărul…','');
+    try{
+      // 1) next registration/act number (same number for both)
+      var num = await sb.rpc('next_anexa_number', { p_register: 'registru_acte' });
+      if(num.error) throw new Error('numerotare: '+num.error.message);
+      var n = String(num.data);
+
+      var serieNr=(els.fSerieNr.value||'').trim().split(/\s+/);
+      var fields = {
+        reg_nr:n, act_nr:n, cim_nr:(els.fCimNr.value||'').trim(), cim_data:(els.fCimData.value||'').trim(),
+        nume:((els.fNume.value||'')+' '+(els.fPrenume.value||'')).trim(),
+        cnp:(els.fCnp.value||'').trim(), ci_serie:serieNr[0]||'', ci_nr:serieNr.slice(1).join(' ')||'',
+        data_azi: todayRo()
+      };
+
+      // 2) call the generator service
+      setStatus(els.genStatus,'Se generează documentul (LibreOffice)…','');
+      var resp = await fetch(svc+'/generate/'+els.tplSel.value, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:fields})});
+      if(!resp.ok){ var t=await resp.text(); throw new Error('serviciu: '+resp.status+' '+t.slice(0,140)); }
+      var pdfBlob = await resp.blob();
+      var pdfBuf = await pdfBlob.arrayBuffer();
+
+      // 3) upload into the driver's dossier (same shape as office uploadOneDocument)
+      setStatus(els.genStatus,'Se adaugă în dosar…','');
+      var documentId = 'DOC-'+Date.now()+'-0';
+      var filePath = documentId+'.pdf';
+      var up = await sb.storage.from('documents').upload(filePath, pdfBlob, {contentType:'application/pdf'});
+      if(up.error) throw new Error('upload: '+up.error.message);
+      var fileHash = await sha256Hex(pdfBuf);
+      var expiresAt = new Date(Date.now()+24*60*60*1000).toISOString();
+      var ins = await sb.from('documents').insert({
+        document_id: documentId, driver_id: driverId,
+        title: 'Anexa 5 – Act adițional (nr. '+n+')', doc_type: 'Anexa 5',
+        doc_date: new Date().toISOString().slice(0,10), valid_until: null,
+        signature_page: null, signature_x_pct: null, signature_y_pct: null,
+        file_path: filePath, file_type: 'pdf', file_hash: fileHash, expires_at: expiresAt
+      });
+      if(ins.error) throw new Error('insert: '+ins.error.message);
+
+      setStatus(els.genStatus,'','');
+      els.resultBanner.textContent = '✓ Anexa 5 (nr. '+n+') a fost generată și adăugată în dosarul șoferului. Deschide panoul biroului pentru a o vedea / genera linkul.';
+      els.resultBanner.classList.remove('hidden');
+    }catch(e){
+      setStatus(els.genStatus, String((e&&e.message)||e), 'err');
+    }finally{ els.genBtn.disabled=false; }
+  });
+})();
+</script>
+</body>
+</html>
