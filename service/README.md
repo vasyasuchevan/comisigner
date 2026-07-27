@@ -22,12 +22,45 @@ npm install
 SOFFICE_BIN="C:/Program Files/LibreOffice/program/soffice.exe" PORT=8080 npm start
 ```
 
-## Run with Docker (how it deploys)
+## Run with Docker
 
 ```bash
 docker build -t comisigner-anexa .
 docker run -p 8080:8080 comisigner-anexa
 ```
+
+## Deploy to production (Render — easiest, no local Docker needed)
+
+The office runs on HTTPS, so the service must too. Render builds the Dockerfile straight from
+GitHub and gives you an HTTPS URL. Steps (all in the browser):
+
+1. Go to **render.com** → sign in with the GitHub account that has the repo.
+2. **New +** → **Blueprint** → pick this repo → **Apply**. (Render reads `render.yaml` at the
+   repo root and creates the service from `service/`.)
+   - Prefer clicking through instead? **New +** → **Web Service** → the repo → set
+     **Root Directory** = `service`, **Runtime** = Docker → Create.
+3. In the service's **Environment**, set:
+   - `ALLOW_ORIGIN` = the office origin, e.g. `https://comisigner.vercel.app`
+   - `API_KEY` = a long random string (the Blueprint generates one automatically).
+4. Wait for the first deploy (LibreOffice makes the image large — a few minutes). Open the
+   service URL + `/health` — it should return `{"ok":true}`.
+5. In the office (`/office/anexe.html` → **Configurare serviciu**) paste the service URL and the
+   same `API_KEY`.
+
+**Plan/memory:** LibreOffice needs ~512 MB+ RAM. Render's free plan can run out of memory and
+also sleeps when idle (slow first request). Use at least the **Starter** plan for real use.
+
+Any host that runs a Docker container with HTTPS works the same way (Railway, Fly.io, Google
+Cloud Run, a VPS with `docker run` behind a TLS proxy) — just set the two env vars.
+
+## Environment variables
+
+| Var | Purpose |
+|-----|---------|
+| `PORT` | Listen port (default 8080; hosts usually set this for you). |
+| `SOFFICE_BIN` | Path to LibreOffice (default `soffice` on PATH; the container has it). |
+| `ALLOW_ORIGIN` | CORS origin allowed to call the service (default `*`; set to the office origin). |
+| `API_KEY` | If set, requests must send the same value as `X-Api-Key` (`/health` stays open). |
 
 ## API
 

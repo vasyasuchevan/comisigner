@@ -9,9 +9,20 @@ app.use(express.json({ limit: '5mb' }));
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || '*';
 app.use((req, res, next) => {
   res.set('Access-Control-Allow-Origin', ALLOW_ORIGIN);
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, X-Api-Key');
   res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+// Optional shared-secret gate. Set API_KEY in the service env and the same value in the office;
+// requests without a matching X-Api-Key are rejected. /health stays open for the host's checks.
+// NOTE: a browser-held key is not strong auth — the proper follow-up is verifying the office's
+// Supabase JWT here. This just keeps the endpoint from being wide-open on the public internet.
+const API_KEY = process.env.API_KEY || '';
+app.use((req, res, next) => {
+  if (req.path === '/health') return next();
+  if (API_KEY && req.get('X-Api-Key') !== API_KEY) return res.status(401).json({ error: 'unauthorized' });
   next();
 });
 

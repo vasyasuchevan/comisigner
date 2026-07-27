@@ -92,8 +92,10 @@
     <section class="card">
       <h2>Configurare serviciu</h2>
       <label>URL serviciu generator (LibreOffice)</label>
-      <input type="text" id="svcUrl" placeholder="http://localhost:8080">
-      <p class="small" style="margin:6px 0 0">Adresa serviciului <code>service/</code> (containerul cu LibreOffice). Se salvează local în acest browser.</p>
+      <input type="text" id="svcUrl" placeholder="https://comisigner-anexa.onrender.com">
+      <label style="margin-top:10px">Cheie API <span class="small">(dacă serviciul cere API_KEY)</span></label>
+      <input type="text" id="svcKey" placeholder="lasă gol dacă serviciul nu are cheie">
+      <p class="small" style="margin:6px 0 0">Adresa (și cheia) serviciului <code>service/</code> desfășurat. Se salvează local în acest browser.</p>
     </section>
   </div>
 </div>
@@ -183,7 +185,7 @@
     return await new Promise(function(resolve){ var fr = new FileReader(); fr.onload = function(){ resolve(fr.result); }; fr.onerror = function(){ resolve(null); }; fr.readAsDataURL(blob); });
   }
 
-  var els = ['driverSel','tplSel','idFile','idPreview','ocrProgress','ocrStatus','readBtn','typePill','fNume','fPrenume','fCnp','fSerieNr','fCimNr','fCimData','genBtn','genStatus','resultBanner','svcUrl','cnpDerived']
+  var els = ['driverSel','tplSel','idFile','idPreview','ocrProgress','ocrStatus','readBtn','typePill','fNume','fPrenume','fCnp','fSerieNr','fCimNr','fCimData','genBtn','genStatus','resultBanner','svcUrl','svcKey','cnpDerived']
     .reduce(function(o,id){o[id]=$(id);return o;},{});
   els.ocrBar = document.querySelector('#ocrProgress>i');
   var imgDataUrl = null;
@@ -195,6 +197,8 @@
     $('main').classList.remove('hidden');
     els.svcUrl.value = localStorage.getItem('anexa_svc_url') || 'http://localhost:8080';
     els.svcUrl.addEventListener('change', function(){ localStorage.setItem('anexa_svc_url', els.svcUrl.value.trim()); });
+    els.svcKey.value = localStorage.getItem('anexa_svc_key') || '';
+    els.svcKey.addEventListener('change', function(){ localStorage.setItem('anexa_svc_key', els.svcKey.value.trim()); });
     var res = await sb.from('drivers').select('id, full_name').order('full_name');
     if (res.error){ els.driverSel.innerHTML = '<option value="">Eroare la încărcarea șoferilor</option>'; return; }
     els.driverSel.innerHTML = '<option value="">— alege un șofer —</option>' +
@@ -264,7 +268,10 @@
       setStatus(els.genStatus,'Se generează documentul (LibreOffice)…','');
       var payload = { fields: fields };
       if (signature) payload.signaturePngBase64 = signature;
-      var resp = await fetch(svc+'/generate/'+els.tplSel.value, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      var headers = { 'Content-Type': 'application/json' };
+      var key = (els.svcKey.value || '').trim();
+      if (key) headers['X-Api-Key'] = key;
+      var resp = await fetch(svc+'/generate/'+els.tplSel.value, {method:'POST',headers:headers,body:JSON.stringify(payload)});
       if(!resp.ok){ var t=await resp.text(); throw new Error('serviciu: '+resp.status+' '+t.slice(0,140)); }
       var pdfBlob = await resp.blob();
       var pdfBuf = await pdfBlob.arrayBuffer();

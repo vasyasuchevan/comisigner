@@ -1,0 +1,16 @@
+# Render Blueprint — deploys the anexa generator service (Docker + LibreOffice) from this repo.
+# Fastest path: in Render click New + → Blueprint → connect this GitHub repo → Apply.
+# (Manual dashboard setup is described in service/README.md if you prefer clicking through.)
+services:
+  - type: web
+    name: comisigner-anexa
+    runtime: docker
+    rootDir: service            # the Dockerfile lives in service/
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    plan: starter               # LibreOffice needs ~512MB+ RAM; the free plan can OOM under load
+    envVars:
+      - key: ALLOW_ORIGIN
+        sync: false             # set to the office origin, e.g. https://comisigner.vercel.app
+      - key: API_KEY
+        generateValue: true     # Render generates a secret — copy it into the office "Cheie API" field
