@@ -1060,8 +1060,11 @@
     if (spot && spot.pageNum >= 1 && spot.pageNum <= pages.length) {
       pageIndex = spot.pageNum - 1;
       var page = pages[pageIndex];
-      x = Math.min(spot.bbox.x1 / spot.scale + 8, page.getWidth() - stampW - 10);
-      y = Math.max(page.getHeight() - (spot.bbox.y1 / spot.scale) - stampH / 2, 10);
+      // Center the stamp on the point (x AND y) — it must match where the on-screen pin
+      // is drawn (also centered on this same point, via CSS translate(-50%,-50%)), or the
+      // final PDF ends up visibly offset from where the driver tapped/saw the marker.
+      x = Math.min(Math.max(spot.bbox.x1 / spot.scale - stampW / 2, 10), page.getWidth() - stampW - 10);
+      y = Math.min(Math.max(page.getHeight() - (spot.bbox.y1 / spot.scale) - stampH / 2, 10), page.getHeight() - stampH - 10);
     } else {
       pageIndex = pages.length - 1;
       x = pages[pageIndex].getWidth() - stampW - 40;
