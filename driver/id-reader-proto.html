@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ComiSigner · Citire act de identitate (CI / pașaport)</title>
+<title>ComiSigner · Anexa 5 — citire act, completare, semnare</title>
 <style>
   :root{--bg:#0f1216;--card:#171b21;--card-2:#1e242c;--line:#2a323d;--ink:#e8edf2;--muted:#9aa7b4;--accent:#4f8cff;--accent-ink:#fff;--ok:#35c98a;--warn:#f0b429;--danger:#ff6b6b;--radius:14px;}
   *{box-sizing:border-box;}
@@ -23,31 +23,38 @@
   button{font:inherit;font-weight:600;cursor:pointer;border:none;border-radius:10px;padding:12px 16px;}
   .btn-primary{background:var(--accent);color:var(--accent-ink);width:100%;}
   .btn-primary:disabled{background:#2a323d;color:#667;cursor:not-allowed;}
+  .btn-ghost{background:var(--card-2);color:var(--ink);border:1px solid var(--line);}
   .drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px 14px;text-align:center;color:var(--muted);background:var(--card-2);}
   .drop strong{color:var(--ink);}
   #idPreview{max-width:100%;border-radius:10px;margin-top:12px;display:none;}
+  canvas.doc-canvas{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff;display:block;margin-top:6px;}
+  .sigwrap{position:relative;background:#fff;border:1px solid var(--line);border-radius:10px;}
+  #sigPad{width:100%;height:170px;display:block;touch-action:none;border-radius:10px;}
+  .sig-hint{position:absolute;left:12px;bottom:8px;color:#b9c2cc;font-size:13px;pointer-events:none;}
+  .row{display:flex;gap:10px;align-items:center;}.row>*{flex:1;}
   .progress{height:6px;background:var(--card-2);border-radius:999px;overflow:hidden;margin-top:10px;display:none;}
   .progress>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s;}
   .status{font-size:13px;color:var(--muted);margin-top:8px;min-height:18px;}
-  .status.err{color:var(--danger);}
-  .status.ok{color:var(--ok);}
+  .status.err{color:var(--danger);}.status.ok{color:var(--ok);}
   .pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--card-2);border:1px solid var(--line);color:var(--muted);}
   .pill.on{background:rgba(79,140,255,.15);border-color:var(--accent);color:#bcd2ff;}
   .derived{font-size:12px;color:var(--ok);margin-top:2px;min-height:15px;}
   .note{font-size:12.5px;color:var(--muted);background:var(--card-2);border-radius:10px;padding:10px 12px;margin-top:12px;}
+  a.dl{display:block;text-align:center;text-decoration:none;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <span class="proto-badge">PROTOTIP</span>
-    <h1>Citire act de identitate</h1>
-    <p>Fotografiază un act (CI românesc sau pașaport). Sistemul îi citește datele — nume, CNP, serie/număr, data nașterii, sex — care vor completa automat anexele CIM.</p>
+    <h1>Anexa 5 — din act la document semnat</h1>
+    <p>Fotografiază actul (CI / pașaport) → se citesc datele → se completează șablonul real Anexa 5 în browser (fără server) → se semnează.</p>
   </header>
 
+  <!-- STEP 1: read ID -->
   <section class="card" id="card1">
     <h2><span class="step-num">1</span> Fotografiază actul</h2>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 4px">Tipul (CI / pașaport) e detectat automat din zona citibilă (MRZ). Pentru citire bună: fotografiază <strong>partea cu MRZ</strong> (rândurile de sus jos cu &lt;&lt;&lt;), lumină uniformă, fără reflexii.</p>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 4px">Tipul (CI / pașaport) e detectat automat din MRZ. Fotografiază partea cu MRZ (rândurile cu &lt;&lt;&lt;), lumină uniformă.</p>
     <label for="idFile" class="drop" id="dropLabel" style="margin-top:10px"><strong>Apasă pentru a fotografia</strong> sau alege o poză a actului.</label>
     <input id="idFile" type="file" accept="image/*" capture="environment" style="display:none">
     <img id="idPreview" alt="Act">
@@ -56,10 +63,11 @@
     <button class="btn-primary" id="readBtn" style="margin-top:12px" disabled>Citește datele</button>
   </section>
 
+  <!-- STEP 2: verify identity -->
   <section class="card dim" id="card2">
     <h2><span class="step-num">2</span> Verifică datele</h2>
     <div style="margin:0 0 8px">Tip detectat: <span class="pill" id="typePill">—</span></div>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 6px">Citirea automată nu e mereu perfectă — verifică și corectează. Data nașterii și sexul sunt calculate din CNP (mai sigur decât citirea din imagine).</p>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 6px">Data nașterii și sexul sunt calculate din CNP. Verifică și corectează.</p>
     <div class="grid2">
       <div><label>Nume</label><input type="text" id="fNume"></div>
       <div><label>Prenume</label><input type="text" id="fPrenume"></div>
@@ -72,53 +80,79 @@
       <div><label>Data nașterii</label><input type="text" id="fData" placeholder="ZZ.LL.AAAA"></div>
       <div><label>Sex</label><input type="text" id="fSex" placeholder="M / F"></div>
     </div>
-    <div class="note">Aceste date sunt materia primă pentru completarea anexelor (Anexa 1/3/5…). Pasul următor: se toarnă în șablon și se semnează.</div>
+    <div class="grid2">
+      <div><label>Nr. CIM (birou)</label><input type="text" id="fCimNr" placeholder="ex. 482"></div>
+      <div><label>Data CIM (birou)</label><input type="text" id="fCimData" placeholder="ZZ.LL.AAAA"></div>
+    </div>
+    <button class="btn-primary" id="genBtn" style="margin-top:14px">Completează Anexa 5</button>
   </section>
+
+  <!-- STEP 3: sign the filled template -->
+  <section class="card dim" id="card3">
+    <h2><span class="step-num">3</span> Verifică documentul și semnează</h2>
+    <div style="color:var(--muted);font-size:13px">Previzualizare (pag. 1 și pag. 4 — unde se semnează):</div>
+    <canvas class="doc-canvas" id="pg1"></canvas>
+    <canvas class="doc-canvas" id="pg4"></canvas>
+    <label style="margin-top:14px">Semnătura</label>
+    <div class="sigwrap"><canvas id="sigPad"></canvas><span class="sig-hint" id="sigHint">Semnează cu degetul aici</span></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn-ghost" id="clearSigBtn">Șterge</button>
+      <button class="btn-primary" id="signBtn" disabled>Aplică semnătura</button>
+    </div>
+    <div class="status" id="signStatus"></div>
+  </section>
+
+  <!-- STEP 4: download -->
+  <section class="card dim" id="card4">
+    <h2><span class="step-num">4</span> Anexa 5 semnată</h2>
+    <canvas class="doc-canvas" id="pgFinal"></canvas>
+    <a class="btn-primary dl" id="dlLink" style="margin-top:14px" download="Anexa5-semnata.pdf">Descarcă PDF</a>
+    <div class="note">Tot fluxul rulează în browser: șablonul real COMILGA + pdf-lib. Fără server, fără AI — datele actului nu părăsesc dispozitivul.</div>
+  </section>
+
+  <div class="note">
+    Notă (prototip): coordonatele câmpurilor din pagina 1 (clauza SALARIATUL, în mijlocul unui paragraf) sunt estimări
+    — se ajustează exact după o previzualizare. Vezi <code>PLACEMENTS</code> în cod. LibreOffice a fost folosit o singură
+    dată, offline, pentru a produce <code>templates/anexa5.pdf</code>; în producție nu e nevoie de el.
+  </div>
 </div>
 
+<script src="vendor/signature_pad.umd.min.js"></script>
 <script src="vendor/tesseract/tesseract.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
 <script>
 (function(){
   'use strict';
+  var PDFLib = window.PDFLib;
 
-  // ---------- Identity parsing (CI TD1 / passport TD3 / front-text; RO-aware) ----------
+  // ================= Identity parsing (CI TD1 / passport TD3 / front text) =================
   function titleCase(s){return (s||'').toLowerCase().replace(/(^|[\s\-])([a-zăâîșț])/g,function(_,sep,ch){return sep+ch.toUpperCase();});}
   function cleanName(s){return (s||'').replace(/</g,' ').replace(/\s+/g,' ').trim();}
   function yymmddToDate(s){var yy=+s.slice(0,2),mm=s.slice(2,4),dd=s.slice(4,6);var nowYY=new Date().getFullYear()%100;var y=yy>nowYY?1900+yy:2000+yy;return dd+'.'+mm+'.'+y;}
   function sexFromMrz(c){return c==='M'?'M':(c==='F'?'F':'');}
-
-  // RO CNP: digit 1 = century+sex, then YYMMDD. Derive DOB + sex reliably.
   function cnpInfo(cnp){
     if(!/^\d{13}$/.test(cnp)) return null;
     var s=+cnp[0];
     var cent={1:1900,2:1900,3:1800,4:1800,5:2000,6:2000}[s];
     var sex=(s>=1&&s<=8)?(s%2?'M':'F'):'';
     var info={sex:sex};
-    if(cent){
-      var yy=+cnp.slice(1,3), mm=cnp.slice(3,5), dd=cnp.slice(5,7);
-      if(+mm>=1&&+mm<=12&&+dd>=1&&+dd<=31) info.data=dd+'.'+mm+'.'+(cent+yy);
-    }
+    if(cent){var yy=+cnp.slice(1,3),mm=cnp.slice(3,5),dd=cnp.slice(5,7);if(+mm>=1&&+mm<=12&&+dd>=1&&+dd<=31)info.data=dd+'.'+mm+'.'+(cent+yy);}
     return info;
   }
-
   function parseIdentity(text){
     var out={tip:'',nume:'',prenume:'',cnp:'',serie:'',numar:'',data:'',sex:''};
     var mrz=text.split(/\r?\n/).map(function(l){return l.replace(/\s+/g,'').toUpperCase();})
       .filter(function(l){return l.length>=28&&/^[A-Z0-9<]+$/.test(l)&&l.indexOf('<')!==-1;});
     var td3=mrz.filter(function(l){return l.length>=40;});
     var td1=mrz.filter(function(l){return l.length>=28&&l.length<=32;});
-
-    if(td3.length>=2){ // PASSPORT (TD3, 2 lines)
+    if(td3.length>=2){
       out.tip='pasaport';
       var l1=td3.filter(function(l){return /^P[A-Z<]/.test(l)&&l.indexOf('<<')!==-1;})[0]||td3[0];
       var l2=td3.filter(function(l){return l!==l1;})[0]||td3[1];
       var nm=l1.slice(5).split('<<'); out.nume=cleanName(nm[0]); out.prenume=cleanName(nm.slice(1).join(' '));
-      out.numar=l2.slice(0,9).replace(/</g,'');
-      out.data=yymmddToDate(l2.slice(13,19));
-      out.sex=sexFromMrz(l2[20]);
-      var personal=l2.slice(28,42).replace(/</g,'');
-      var m=personal.match(/\d{13}/); if(m) out.cnp=m[0];
-    } else if(td1.length>=2){ // ID CARD (TD1, 3 lines: RO CI / MD buletin)
+      out.numar=l2.slice(0,9).replace(/</g,''); out.data=yymmddToDate(l2.slice(13,19)); out.sex=sexFromMrz(l2[20]);
+      var personal=l2.slice(28,42).replace(/</g,''); var m=personal.match(/\d{13}/); if(m) out.cnp=m[0];
+    } else if(td1.length>=2){
       out.tip='ci';
       var lc=function(l){return (l.match(/[A-Z]/g)||[]).length;};
       var dateLine=td1.filter(function(l){return /^\d{6}\d[MFX<]\d{6}\d/.test(l);})[0];
@@ -128,92 +162,151 @@
       var docLine=td1.filter(function(l){return l!==dateLine&&l!==nameLine;})[0];
       if(docLine){out.numar=docLine.substring(5,14).replace(/</g,'');}
     }
-
     if(!out.cnp){var c=text.match(/\b\d{13}\b/); if(c) out.cnp=c[0];}
     var sn=text.match(/seria\s*([A-Z]{2})\s*nr\.?\s*(\d{6})/i);
     if(sn){out.serie=sn[1].toUpperCase(); if(!out.numar) out.numar=sn[2];}
     if(out.tip==='ci' && !out.serie && /^[A-Z]{2}\d/.test(out.numar)){ out.serie=out.numar.slice(0,2); out.numar=out.numar.slice(2); }
-
     if(!out.nume){var nmf=text.match(/(?:Nume|Nom|Last[ \t]*name)\b[ \t:\/]{0,4}([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30}(?:[ \t]+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30})?)/); if(nmf) out.nume=nmf[1].trim();}
     if(!out.prenume){var pmf=text.match(/(?:Prenume|Prénom|Prenom|First[ \t]*name)\b[ \t:\/]{0,4}([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30}(?:[ \t]+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30})?)/); if(pmf) out.prenume=pmf[1].trim();}
-
-    var ci=cnpInfo(out.cnp);
-    if(ci){ if(ci.data) out.data=ci.data; if(ci.sex) out.sex=ci.sex; }
-
+    var ci=cnpInfo(out.cnp); if(ci){ if(ci.data) out.data=ci.data; if(ci.sex) out.sex=ci.sex; }
     out.nume=titleCase(out.nume); out.prenume=titleCase(out.prenume);
     return out;
   }
 
-  // ---------- UI ----------
-  var els={
-    file:document.getElementById('idFile'), preview:document.getElementById('idPreview'),
-    readBtn:document.getElementById('readBtn'), ocrProgress:document.getElementById('ocrProgress'),
-    ocrBar:document.querySelector('#ocrProgress>i'), ocrStatus:document.getElementById('ocrStatus'),
-    card2:document.getElementById('card2'), typePill:document.getElementById('typePill'),
-    fNume:document.getElementById('fNume'), fPrenume:document.getElementById('fPrenume'),
-    fCnp:document.getElementById('fCnp'), fSerieNr:document.getElementById('fSerieNr'),
-    fData:document.getElementById('fData'), fSex:document.getElementById('fSex'),
-    cnpDerived:document.getElementById('cnpDerived')
-  };
-  var imgDataUrl=null;
-  function setStatus(m,c){els.ocrStatus.textContent=m;els.ocrStatus.className='status'+(c?' '+c:'');}
+  // Transliterate RO diacritics for the standard PDF font (WinAnsi can't encode ș/ț/ă).
+  function pdfSafe(s){return String(s==null?'':s)
+    .replace(/[ăâĂÂ]/g,function(c){return /[ăâ]/.test(c)?'a':'A';}).replace(/[î]/g,'i').replace(/[Î]/g,'I')
+    .replace(/[șşȘŞ]/g,function(c){return /[șş]/.test(c)?'s':'S';}).replace(/[țţȚŢ]/g,function(c){return /[țţ]/.test(c)?'t':'T';})
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g,'');}
 
-  els.file.addEventListener('change',function(){
-    var f=els.file.files&&els.file.files[0]; if(!f) return;
+  // ================= pdf.js preview (works in the user's browser) =================
+  var pdfjsPromise=null;
+  function loadPdfjs(){if(!pdfjsPromise){pdfjsPromise=import('./vendor/pdfjs/pdf.min.mjs').then(function(lib){lib.GlobalWorkerOptions.workerSrc='vendor/pdfjs/pdf.worker.min.mjs';return lib;});}return pdfjsPromise;}
+  async function renderPage(bytes, canvas, pageNum){
+    var pdfjs=await loadPdfjs();
+    var doc=await pdfjs.getDocument({data:bytes.slice(0)}).promise;
+    var page=await doc.getPage(pageNum);
+    var dpr=Math.min(Math.max(window.devicePixelRatio||1,1),2);
+    var cssW=canvas.clientWidth||560; var un=page.getViewport({scale:1});
+    var vp=page.getViewport({scale:(cssW/un.width)*dpr});
+    canvas.width=vp.width; canvas.height=vp.height; canvas.style.height=(vp.height/dpr)+'px';
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+  }
+
+  // ================= Fill Anexa 5 (in-browser, pdf-lib overlay) =================
+  // Coordinates are PDF points, origin bottom-left. Page 4 block is from exact text-layer
+  // anchors; page-1 inline (SALARIATUL clause) values are ESTIMATES — tune against a preview.
+  function placements(v){
+    return [
+      // --- page 1: clauza SALARIATUL (estimated x — needs one visual tune) ---
+      {p:0, x:176, y:345, size:9,  t:v.numeComplet},
+      {p:0, x:250, y:345, size:9,  t:v.cnp},          // after ", CNP " — estimate
+      {p:0, x:228, y:330, size:9,  t:v.serie},         // "C.I. seria __"
+      {p:0, x:262, y:330, size:9,  t:v.numar},         // "nr. __"
+      {p:0, x:250, y:314, size:9,  t:v.cimNr},         // "...Muncă nr. __ din data de __"
+      {p:0, x:330, y:314, size:9,  t:v.cimData},
+      // --- page 4: SALARIAT block (exact anchors) ---
+      {p:3, x:300, y:547, size:10, t:v.numeComplet},   // above "(numele si prenumele)"
+      {p:3, x:88,  y:377, size:10, t:v.dataAzi}         // "Data: __"
+    ];
+  }
+  var SIG_RECT = {p:3, x:352, y:500, w:120, h:34};     // SALARIAT "Semnatura ____" line
+
+  async function buildFilled(v, sigDataUrl){
+    var tpl=await fetch('templates/anexa5.pdf').then(function(r){if(!r.ok)throw new Error('template negasit');return r.arrayBuffer();});
+    var doc=await PDFLib.PDFDocument.load(tpl);
+    var font=await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    var pages=doc.getPages();
+    var color=PDFLib.rgb(0.06,0.07,0.12);
+    placements(v).forEach(function(pl){ if(pl.t) pages[pl.p].drawText(pdfSafe(pl.t),{x:pl.x,y:pl.y,size:pl.size,font:font,color:color}); });
+    if(sigDataUrl){
+      var png=await doc.embedPng(sigDataUrl);
+      var s=Math.min(SIG_RECT.w/png.width, SIG_RECT.h/png.height);
+      pages[SIG_RECT.p].drawImage(png,{x:SIG_RECT.x,y:SIG_RECT.y,width:png.width*s,height:png.height*s});
+    }
+    return await doc.save();
+  }
+
+  // ================= DOM / state =================
+  var els={};['idFile','idPreview','readBtn','ocrProgress','ocrStatus','card2','typePill','fNume','fPrenume','fCnp','fSerieNr','fData','fSex','fCimNr','fCimData','genBtn','card3','pg1','pg4','sigPad','sigHint','clearSigBtn','signBtn','signStatus','card4','pgFinal','dlLink','cnpDerived']
+    .forEach(function(id){els[id]=document.getElementById(id);});
+  els.ocrBar=document.querySelector('#ocrProgress>i');
+  var imgDataUrl=null, baseBytes=null;
+  function setStatus(el,m,c){el.textContent=m;el.className='status'+(c?' '+c:'');}
+  function values(){
+    var serieNr=(els.fSerieNr.value||'').trim().split(/\s+/);
+    return {
+      numeComplet:((els.fNume.value||'')+' '+(els.fPrenume.value||'')).trim(),
+      cnp:els.fCnp.value||'', serie:serieNr[0]||'', numar:serieNr.slice(1).join(' ')||'',
+      cimNr:els.fCimNr.value||'', cimData:els.fCimData.value||'',
+      dataAzi:(function(){var d=new Date();return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();})()
+    };
+  }
+
+  // Step 1: file + OCR
+  els.idFile.addEventListener('change',function(){
+    var f=els.idFile.files&&els.idFile.files[0]; if(!f) return;
     var r=new FileReader();
-    r.onload=function(){imgDataUrl=r.result;els.preview.src=r.result;els.preview.style.display='block';els.readBtn.disabled=false;setStatus('','');};
+    r.onload=function(){imgDataUrl=r.result;els.idPreview.src=r.result;els.idPreview.style.display='block';els.readBtn.disabled=false;setStatus(els.ocrStatus,'','');};
     r.readAsDataURL(f);
   });
-
   var worker=null;
   async function getWorker(){
-    if(!worker){
-      worker=await Tesseract.createWorker('ron+eng',1,{
-        workerPath:'vendor/tesseract/worker.min.js',
-        corePath:'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
-        langPath:'vendor/tesseract/lang-data',
-        logger:function(m){if(m.status==='recognizing text'&&typeof m.progress==='number')els.ocrBar.style.width=Math.round(m.progress*100)+'%';}
-      });
-    }
+    if(!worker){worker=await Tesseract.createWorker('ron+eng',1,{workerPath:'vendor/tesseract/worker.min.js',corePath:'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',langPath:'vendor/tesseract/lang-data',logger:function(m){if(m.status==='recognizing text'&&typeof m.progress==='number')els.ocrBar.style.width=Math.round(m.progress*100)+'%';}});}
     return worker;
   }
-
   var TYPE_LABEL={ci:'Carte de identitate',pasaport:'Pașaport'};
-  function fill(v){
-    els.fNume.value=v.nume||''; els.fPrenume.value=v.prenume||'';
-    els.fCnp.value=v.cnp||''; els.fData.value=v.data||''; els.fSex.value=v.sex||'';
-    els.fSerieNr.value=[v.serie,v.numar].filter(Boolean).join(' ');
-    els.typePill.textContent=TYPE_LABEL[v.tip]||'Nedetectat';
-    els.typePill.className='pill'+(v.tip?' on':'');
-    refreshDerived();
-  }
-  function refreshDerived(){
-    var ci=cnpInfo((els.fCnp.value||'').trim());
-    els.cnpDerived.textContent = ci&&(ci.data||ci.sex) ? ('din CNP: '+(ci.data||'—')+(ci.sex?', '+ci.sex:'')) : '';
-  }
-  els.fCnp.addEventListener('input',function(){
-    var ci=cnpInfo((els.fCnp.value||'').trim());
-    if(ci){ if(ci.data) els.fData.value=ci.data; if(ci.sex) els.fSex.value=ci.sex; }
-    refreshDerived();
-  });
-
+  function refreshDerived(){var ci=cnpInfo((els.fCnp.value||'').trim());els.cnpDerived.textContent=ci&&(ci.data||ci.sex)?('din CNP: '+(ci.data||'—')+(ci.sex?', '+ci.sex:'')):'';}
+  els.fCnp.addEventListener('input',function(){var ci=cnpInfo((els.fCnp.value||'').trim());if(ci){if(ci.data)els.fData.value=ci.data;if(ci.sex)els.fSex.value=ci.sex;}refreshDerived();});
   els.readBtn.addEventListener('click',async function(){
     if(!imgDataUrl) return;
-    els.readBtn.disabled=true; els.ocrProgress.style.display='block'; els.ocrBar.style.width='0%';
-    setStatus('Se citește actul…','');
+    els.readBtn.disabled=true;els.ocrProgress.style.display='block';els.ocrBar.style.width='0%';setStatus(els.ocrStatus,'Se citește actul…','');
     try{
-      var w=await getWorker();
-      var res=await w.recognize(imgDataUrl);
-      fill(parseIdentity((res&&res.data&&res.data.text)||''));
-      setStatus('Gata — verifică datele mai jos.','ok');
-      els.card2.classList.remove('dim');
-      els.card2.scrollIntoView({behavior:'smooth',block:'start'});
-    }catch(e){
-      setStatus('Nu am putut citi automat. Poți completa manual mai jos.','err');
-      els.card2.classList.remove('dim');
-    }finally{
-      els.ocrProgress.style.display='none'; els.readBtn.disabled=false;
-    }
+      var w=await getWorker(); var res=await w.recognize(imgDataUrl); var v=parseIdentity((res&&res.data&&res.data.text)||'');
+      els.fNume.value=v.nume||'';els.fPrenume.value=v.prenume||'';els.fCnp.value=v.cnp||'';els.fData.value=v.data||'';els.fSex.value=v.sex||'';
+      els.fSerieNr.value=[v.serie,v.numar].filter(Boolean).join(' ');
+      els.typePill.textContent=TYPE_LABEL[v.tip]||'Nedetectat';els.typePill.className='pill'+(v.tip?' on':'');
+      refreshDerived();
+      setStatus(els.ocrStatus,'Gata — verifică datele mai jos.','ok');
+      els.card2.classList.remove('dim'); els.card2.scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){setStatus(els.ocrStatus,'Nu am putut citi automat. Completează manual.','err');els.card2.classList.remove('dim');}
+    finally{els.ocrProgress.style.display='none';els.readBtn.disabled=false;}
+  });
+
+  // Step 2 -> generate filled template
+  els.genBtn.addEventListener('click',async function(){
+    els.genBtn.disabled=true;
+    try{
+      baseBytes=await buildFilled(values(), null);
+      await renderPage(baseBytes, els.pg1, 1);
+      await renderPage(baseBytes, els.pg4, 4);
+      els.card3.classList.remove('dim'); setupSignaturePad();
+      els.card3.scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){alert('Eroare la completare: '+(e&&e.message?e.message:e));}
+    finally{els.genBtn.disabled=false;}
+  });
+
+  // Step 3 -> sign
+  var signaturePad=null;
+  function setupSignaturePad(){
+    if(signaturePad) return;
+    var canvas=els.sigPad;
+    function resize(){var ratio=Math.max(window.devicePixelRatio||1,1);canvas.width=canvas.offsetWidth*ratio;canvas.height=canvas.offsetHeight*ratio;canvas.getContext('2d').scale(ratio,ratio);if(signaturePad)signaturePad.clear();}
+    signaturePad=new SignaturePad(canvas,{backgroundColor:'rgba(0,0,0,0)',penColor:'rgb(20,20,20)'});
+    signaturePad.addEventListener('beginStroke',function(){els.sigHint.style.display='none';els.signBtn.disabled=false;});
+    window.addEventListener('resize',resize); resize();
+  }
+  els.clearSigBtn.addEventListener('click',function(){if(signaturePad)signaturePad.clear();els.sigHint.style.display='block';els.signBtn.disabled=true;});
+  els.signBtn.addEventListener('click',async function(){
+    if(!signaturePad||signaturePad.isEmpty()) return;
+    els.signBtn.disabled=true; setStatus(els.signStatus,'Se aplică semnătura…','');
+    try{
+      var signed=await buildFilled(values(), signaturePad.toDataURL('image/png'));
+      await renderPage(signed, els.pgFinal, 4);
+      els.dlLink.href=URL.createObjectURL(new Blob([signed],{type:'application/pdf'}));
+      setStatus(els.signStatus,'Gata.','ok');
+      els.card4.classList.remove('dim'); els.card4.scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){setStatus(els.signStatus,'Eroare: '+(e&&e.message?e.message:e),'err');els.signBtn.disabled=false;}
   });
 })();
 </script>
