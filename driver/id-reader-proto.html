@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ComiSigner · Citire act de identitate (CI / pașaport)</title>
+<style>
+  :root{--bg:#0f1216;--card:#171b21;--card-2:#1e242c;--line:#2a323d;--ink:#e8edf2;--muted:#9aa7b4;--accent:#4f8cff;--accent-ink:#fff;--ok:#35c98a;--warn:#f0b429;--danger:#ff6b6b;--radius:14px;}
+  *{box-sizing:border-box;}
+  body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%;}
+  .wrap{max-width:620px;margin:0 auto;padding:18px 16px 64px;}
+  header h1{font-size:20px;margin:6px 0 2px;}
+  header p{color:var(--muted);margin:0 0 8px;font-size:14px;}
+  .proto-badge{display:inline-block;font-size:12px;font-weight:600;color:#201700;background:var(--warn);padding:2px 8px;border-radius:999px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:14px 0;}
+  .card.dim{opacity:.5;pointer-events:none;}
+  .step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;margin-right:8px;}
+  .card h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px;}
+  input[type=text],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card-2);color:var(--ink);font:inherit;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:460px){.grid2{grid-template-columns:1fr;}}
+  button{font:inherit;font-weight:600;cursor:pointer;border:none;border-radius:10px;padding:12px 16px;}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);width:100%;}
+  .btn-primary:disabled{background:#2a323d;color:#667;cursor:not-allowed;}
+  .drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px 14px;text-align:center;color:var(--muted);background:var(--card-2);}
+  .drop strong{color:var(--ink);}
+  #idPreview{max-width:100%;border-radius:10px;margin-top:12px;display:none;}
+  .progress{height:6px;background:var(--card-2);border-radius:999px;overflow:hidden;margin-top:10px;display:none;}
+  .progress>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s;}
+  .status{font-size:13px;color:var(--muted);margin-top:8px;min-height:18px;}
+  .status.err{color:var(--danger);}
+  .status.ok{color:var(--ok);}
+  .pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--card-2);border:1px solid var(--line);color:var(--muted);}
+  .pill.on{background:rgba(79,140,255,.15);border-color:var(--accent);color:#bcd2ff;}
+  .derived{font-size:12px;color:var(--ok);margin-top:2px;min-height:15px;}
+  .note{font-size:12.5px;color:var(--muted);background:var(--card-2);border-radius:10px;padding:10px 12px;margin-top:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="proto-badge">PROTOTIP</span>
+    <h1>Citire act de identitate</h1>
+    <p>Fotografiază un act (CI românesc sau pașaport). Sistemul îi citește datele — nume, CNP, serie/număr, data nașterii, sex — care vor completa automat anexele CIM.</p>
+  </header>
+
+  <section class="card" id="card1">
+    <h2><span class="step-num">1</span> Fotografiază actul</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 4px">Tipul (CI / pașaport) e detectat automat din zona citibilă (MRZ). Pentru citire bună: fotografiază <strong>partea cu MRZ</strong> (rândurile de sus jos cu &lt;&lt;&lt;), lumină uniformă, fără reflexii.</p>
+    <label for="idFile" class="drop" id="dropLabel" style="margin-top:10px"><strong>Apasă pentru a fotografia</strong> sau alege o poză a actului.</label>
+    <input id="idFile" type="file" accept="image/*" capture="environment" style="display:none">
+    <img id="idPreview" alt="Act">
+    <div class="progress" id="ocrProgress"><i></i></div>
+    <div class="status" id="ocrStatus"></div>
+    <button class="btn-primary" id="readBtn" style="margin-top:12px" disabled>Citește datele</button>
+  </section>
+
+  <section class="card dim" id="card2">
+    <h2><span class="step-num">2</span> Verifică datele</h2>
+    <div style="margin:0 0 8px">Tip detectat: <span class="pill" id="typePill">—</span></div>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 6px">Citirea automată nu e mereu perfectă — verifică și corectează. Data nașterii și sexul sunt calculate din CNP (mai sigur decât citirea din imagine).</p>
+    <div class="grid2">
+      <div><label>Nume</label><input type="text" id="fNume"></div>
+      <div><label>Prenume</label><input type="text" id="fPrenume"></div>
+    </div>
+    <div class="grid2">
+      <div><label>CNP</label><input type="text" id="fCnp" inputmode="numeric"><div class="derived" id="cnpDerived"></div></div>
+      <div><label>Serie și număr</label><input type="text" id="fSerieNr"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Data nașterii</label><input type="text" id="fData" placeholder="ZZ.LL.AAAA"></div>
+      <div><label>Sex</label><input type="text" id="fSex" placeholder="M / F"></div>
+    </div>
+    <div class="note">Aceste date sunt materia primă pentru completarea anexelor (Anexa 1/3/5…). Pasul următor: se toarnă în șablon și se semnează.</div>
+  </section>
+</div>
+
+<script src="vendor/tesseract/tesseract.min.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Identity parsing (CI TD1 / passport TD3 / front-text; RO-aware) ----------
+  function titleCase(s){return (s||'').toLowerCase().replace(/(^|[\s\-])([a-zăâîșț])/g,function(_,sep,ch){return sep+ch.toUpperCase();});}
+  function cleanName(s){return (s||'').replace(/</g,' ').replace(/\s+/g,' ').trim();}
+  function yymmddToDate(s){var yy=+s.slice(0,2),mm=s.slice(2,4),dd=s.slice(4,6);var nowYY=new Date().getFullYear()%100;var y=yy>nowYY?1900+yy:2000+yy;return dd+'.'+mm+'.'+y;}
+  function sexFromMrz(c){return c==='M'?'M':(c==='F'?'F':'');}
+
+  // RO CNP: digit 1 = century+sex, then YYMMDD. Derive DOB + sex reliably.
+  function cnpInfo(cnp){
+    if(!/^\d{13}$/.test(cnp)) return null;
+    var s=+cnp[0];
+    var cent={1:1900,2:1900,3:1800,4:1800,5:2000,6:2000}[s];
+    var sex=(s>=1&&s<=8)?(s%2?'M':'F'):'';
+    var info={sex:sex};
+    if(cent){
+      var yy=+cnp.slice(1,3), mm=cnp.slice(3,5), dd=cnp.slice(5,7);
+      if(+mm>=1&&+mm<=12&&+dd>=1&&+dd<=31) info.data=dd+'.'+mm+'.'+(cent+yy);
+    }
+    return info;
+  }
+
+  function parseIdentity(text){
+    var out={tip:'',nume:'',prenume:'',cnp:'',serie:'',numar:'',data:'',sex:''};
+    var mrz=text.split(/\r?\n/).map(function(l){return l.replace(/\s+/g,'').toUpperCase();})
+      .filter(function(l){return l.length>=28&&/^[A-Z0-9<]+$/.test(l)&&l.indexOf('<')!==-1;});
+    var td3=mrz.filter(function(l){return l.length>=40;});
+    var td1=mrz.filter(function(l){return l.length>=28&&l.length<=32;});
+
+    if(td3.length>=2){ // PASSPORT (TD3, 2 lines)
+      out.tip='pasaport';
+      var l1=td3.filter(function(l){return /^P[A-Z<]/.test(l)&&l.indexOf('<<')!==-1;})[0]||td3[0];
+      var l2=td3.filter(function(l){return l!==l1;})[0]||td3[1];
+      var nm=l1.slice(5).split('<<'); out.nume=cleanName(nm[0]); out.prenume=cleanName(nm.slice(1).join(' '));
+      out.numar=l2.slice(0,9).replace(/</g,'');
+      out.data=yymmddToDate(l2.slice(13,19));
+      out.sex=sexFromMrz(l2[20]);
+      var personal=l2.slice(28,42).replace(/</g,'');
+      var m=personal.match(/\d{13}/); if(m) out.cnp=m[0];
+    } else if(td1.length>=2){ // ID CARD (TD1, 3 lines: RO CI / MD buletin)
+      out.tip='ci';
+      var lc=function(l){return (l.match(/[A-Z]/g)||[]).length;};
+      var dateLine=td1.filter(function(l){return /^\d{6}\d[MFX<]\d{6}\d/.test(l);})[0];
+      if(dateLine){var dm=dateLine.match(/^(\d{6})\d([MFX<])/);if(dm){out.data=yymmddToDate(dm[1]);out.sex=sexFromMrz(dm[2]);}}
+      var nameLine=td1.filter(function(l){return l!==dateLine&&l.indexOf('<<')!==-1&&lc(l)>=3;}).sort(function(a,b){return lc(b)-lc(a);})[0];
+      if(nameLine){var p=nameLine.split('<<');out.nume=cleanName(p[0]);out.prenume=cleanName(p.slice(1).join(' '));}
+      var docLine=td1.filter(function(l){return l!==dateLine&&l!==nameLine;})[0];
+      if(docLine){out.numar=docLine.substring(5,14).replace(/</g,'');}
+    }
+
+    if(!out.cnp){var c=text.match(/\b\d{13}\b/); if(c) out.cnp=c[0];}
+    var sn=text.match(/seria\s*([A-Z]{2})\s*nr\.?\s*(\d{6})/i);
+    if(sn){out.serie=sn[1].toUpperCase(); if(!out.numar) out.numar=sn[2];}
+    if(out.tip==='ci' && !out.serie && /^[A-Z]{2}\d/.test(out.numar)){ out.serie=out.numar.slice(0,2); out.numar=out.numar.slice(2); }
+
+    if(!out.nume){var nmf=text.match(/(?:Nume|Nom|Last[ \t]*name)\b[ \t:\/]{0,4}([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30}(?:[ \t]+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30})?)/); if(nmf) out.nume=nmf[1].trim();}
+    if(!out.prenume){var pmf=text.match(/(?:Prenume|Prénom|Prenom|First[ \t]*name)\b[ \t:\/]{0,4}([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30}(?:[ \t]+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ\-]{1,30})?)/); if(pmf) out.prenume=pmf[1].trim();}
+
+    var ci=cnpInfo(out.cnp);
+    if(ci){ if(ci.data) out.data=ci.data; if(ci.sex) out.sex=ci.sex; }
+
+    out.nume=titleCase(out.nume); out.prenume=titleCase(out.prenume);
+    return out;
+  }
+
+  // ---------- UI ----------
+  var els={
+    file:document.getElementById('idFile'), preview:document.getElementById('idPreview'),
+    readBtn:document.getElementById('readBtn'), ocrProgress:document.getElementById('ocrProgress'),
+    ocrBar:document.querySelector('#ocrProgress>i'), ocrStatus:document.getElementById('ocrStatus'),
+    card2:document.getElementById('card2'), typePill:document.getElementById('typePill'),
+    fNume:document.getElementById('fNume'), fPrenume:document.getElementById('fPrenume'),
+    fCnp:document.getElementById('fCnp'), fSerieNr:document.getElementById('fSerieNr'),
+    fData:document.getElementById('fData'), fSex:document.getElementById('fSex'),
+    cnpDerived:document.getElementById('cnpDerived')
+  };
+  var imgDataUrl=null;
+  function setStatus(m,c){els.ocrStatus.textContent=m;els.ocrStatus.className='status'+(c?' '+c:'');}
+
+  els.file.addEventListener('change',function(){
+    var f=els.file.files&&els.file.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){imgDataUrl=r.result;els.preview.src=r.result;els.preview.style.display='block';els.readBtn.disabled=false;setStatus('','');};
+    r.readAsDataURL(f);
+  });
+
+  var worker=null;
+  async function getWorker(){
+    if(!worker){
+      worker=await Tesseract.createWorker('ron+eng',1,{
+        workerPath:'vendor/tesseract/worker.min.js',
+        corePath:'vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+        langPath:'vendor/tesseract/lang-data',
+        logger:function(m){if(m.status==='recognizing text'&&typeof m.progress==='number')els.ocrBar.style.width=Math.round(m.progress*100)+'%';}
+      });
+    }
+    return worker;
+  }
+
+  var TYPE_LABEL={ci:'Carte de identitate',pasaport:'Pașaport'};
+  function fill(v){
+    els.fNume.value=v.nume||''; els.fPrenume.value=v.prenume||'';
+    els.fCnp.value=v.cnp||''; els.fData.value=v.data||''; els.fSex.value=v.sex||'';
+    els.fSerieNr.value=[v.serie,v.numar].filter(Boolean).join(' ');
+    els.typePill.textContent=TYPE_LABEL[v.tip]||'Nedetectat';
+    els.typePill.className='pill'+(v.tip?' on':'');
+    refreshDerived();
+  }
+  function refreshDerived(){
+    var ci=cnpInfo((els.fCnp.value||'').trim());
+    els.cnpDerived.textContent = ci&&(ci.data||ci.sex) ? ('din CNP: '+(ci.data||'—')+(ci.sex?', '+ci.sex:'')) : '';
+  }
+  els.fCnp.addEventListener('input',function(){
+    var ci=cnpInfo((els.fCnp.value||'').trim());
+    if(ci){ if(ci.data) els.fData.value=ci.data; if(ci.sex) els.fSex.value=ci.sex; }
+    refreshDerived();
+  });
+
+  els.readBtn.addEventListener('click',async function(){
+    if(!imgDataUrl) return;
+    els.readBtn.disabled=true; els.ocrProgress.style.display='block'; els.ocrBar.style.width='0%';
+    setStatus('Se citește actul…','');
+    try{
+      var w=await getWorker();
+      var res=await w.recognize(imgDataUrl);
+      fill(parseIdentity((res&&res.data&&res.data.text)||''));
+      setStatus('Gata — verifică datele mai jos.','ok');
+      els.card2.classList.remove('dim');
+      els.card2.scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){
+      setStatus('Nu am putut citi automat. Poți completa manual mai jos.','err');
+      els.card2.classList.remove('dim');
+    }finally{
+      els.ocrProgress.style.display='none'; els.readBtn.disabled=false;
+    }
+  });
+})();
+</script>
+</body>
+</html>
