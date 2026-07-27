@@ -647,6 +647,17 @@
     pointer-events: none;
     z-index: 2;
   }
+  .sig-edit-overlay {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+    z-index: 2;
+    filter: drop-shadow(0 1px 4px rgba(15,23,42,0.4));
+  }
+  .sig-edit-overlay:active { cursor: grabbing; }
 
   /* --- search inputs (driver list / document list) --- */
   .search-input {
@@ -850,7 +861,10 @@
             <h2 id="detailDriverName"></h2>
             <div class="subtitle" id="detailDriverPhone"></div>
           </div>
-          <button type="button" id="dossierLinkBtn" class="dossier-link-btn">Link pentru tot dosarul</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" id="dossierLinkBtn" class="dossier-link-btn">Link pentru tot dosarul</button>
+            <button type="button" id="deleteDriverBtn" class="staff-deactivate-btn" style="display:none;">Șterge șoferul</button>
+          </div>
         </div>
         <div class="dossier-link-result" id="dossierLinkResult">
           <div>✓ Link generat (expiră în 24h). Trimiteți-l șoferului:</div>
@@ -947,6 +961,24 @@
       <div class="field">
         <label>Semnătura colectată la semnare</label>
         <img class="sig-img" id="mSigImg" alt="semnătură">
+      </div>
+
+      <button type="button" class="collapsible-toggle detail-subhead" id="sigEditToggle" aria-expanded="false" aria-controls="sigEditBody" style="display:none;">
+        <span class="collapsible-icon">+</span> Reglează semnătura
+      </button>
+      <div class="collapsible-body" id="sigEditBody">
+        <div class="hint" style="margin-bottom:8px;">Poți repoziționa, redimensiona sau modifica transparența semnăturii pe copia afișată aici — documentul original și hash-ul de audit nu se ating niciodată. Trage semnătura pe pagina de mai jos ca s-o muți; apasă pe altă pagină ca s-o treci acolo.</div>
+        <div id="sigEditPreview" class="sig-placement-preview"></div>
+        <div class="upload-field" style="margin-top:10px;">
+          <label for="sigEditWidth">Lățime</label>
+          <input type="range" id="sigEditWidth" min="40" max="300" step="5">
+        </div>
+        <div class="upload-field">
+          <label for="sigEditOpacity">Transparență</label>
+          <input type="range" id="sigEditOpacity" min="10" max="100" step="5">
+        </div>
+        <button type="button" id="sigEditSaveBtn">Salvează</button>
+        <div class="hint" id="sigEditStatus" style="margin-top:6px;"></div>
       </div>
 
       <button type="button" class="collapsible-toggle detail-subhead" id="auditToggle" aria-expanded="false" aria-controls="auditBody">
@@ -1069,6 +1101,7 @@
 
 <script src="vendor/supabase.js"></script>
 <script src="vendor/qrcode.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
 <script>
   var SUPABASE_URL = 'https://nyuuhxbyvqntcygbwzcp.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_T3BAn6CVhnFeNEV87UjULA_JnuCJYnx';
@@ -1137,6 +1170,7 @@
   var detailDriverName = document.getElementById('detailDriverName');
   var detailDriverPhone = document.getElementById('detailDriverPhone');
   var dossierLinkBtn = document.getElementById('dossierLinkBtn');
+  var deleteDriverBtn = document.getElementById('deleteDriverBtn');
   var dossierLinkResult = document.getElementById('dossierLinkResult');
   var detailDocCount = document.getElementById('detailDocCount');
   var detailDocsList = document.getElementById('detailDocsList');
@@ -1312,6 +1346,39 @@
     sigPlacementClearBtn.style.display = 'none';
   });
 
+  // Shared by the upload-time placement preview and the post-signing signature editor —
+  // renders a PDF ArrayBuffer page-by-page into `container` (one <canvas> per page inside
+  // a .pdf-page wrapper, same shape driver/index.html uses) and returns the page list.
+  async function renderPdfBufferToPages(buffer, container, maxPages) {
+    var pdfjsLib = await loadOfficePdfjs();
+    var pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    container.innerHTML = '';
+    var pages = [];
+    var cap = Math.min(pdf.numPages, maxPages || 15);
+    for (var i = 1; i <= cap; i++) {
+      var page = await pdf.getPage(i);
+      var baseViewport = page.getViewport({ scale: 1 });
+      var scale = (container.clientWidth || 460) / baseViewport.width;
+      var viewport = page.getViewport({ scale: scale });
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+      var pageEl = document.createElement('div');
+      pageEl.className = 'pdf-page';
+      pageEl.appendChild(canvas);
+      container.appendChild(pageEl);
+      pages.push({ canvas: canvas, el: pageEl, pageNum: i, scale: scale });
+    }
+    if (pdf.numPages > cap) {
+      var note = document.createElement('div');
+      note.className = 'state-msg';
+      note.textContent = '(' + (pdf.numPages - cap) + ' pagini omise aici — dacă e nevoie, folosiți linkul „Deschide documentul într-o filă nouă" pentru documentul complet)';
+      container.appendChild(note);
+    }
+    return pages;
+  }
+
   async function renderSigPlacementPreviewIfNeeded() {
     if (!isSinglePdfStaged()) return;
     var file = stagedFiles[0];
@@ -1321,54 +1388,219 @@
     sigPlacementClearBtn.style.display = 'none';
     sigPlacementPreview.innerHTML = '<div class="state-msg">Se încarcă previzualizarea…</div>';
     try {
-      var pdfjsLib = await loadOfficePdfjs();
       var buffer = await file.arrayBuffer();
-      var pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-      sigPlacementPreview.innerHTML = '';
-      var maxPages = Math.min(pdf.numPages, 15);
-      for (var i = 1; i <= maxPages; i++) {
-        var page = await pdf.getPage(i);
-        var baseViewport = page.getViewport({ scale: 1 });
-        var scale = (sigPlacementPreview.clientWidth || 460) / baseViewport.width;
-        var viewport = page.getViewport({ scale: scale });
-        var canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-        var pageEl = document.createElement('div');
-        pageEl.className = 'pdf-page';
-        pageEl.appendChild(canvas);
-        sigPlacementPreview.appendChild(pageEl);
-        (function (pageNum, pageElRef, canvasRef) {
-          canvasRef.addEventListener('click', function (e) {
-            var rect = canvasRef.getBoundingClientRect();
-            var xPct = ((e.clientX - rect.left) / rect.width) * 100;
-            var yPct = ((e.clientY - rect.top) / rect.height) * 100;
-            sigPlacementPreview.querySelectorAll('.sig-pin').forEach(function (p) { p.remove(); });
-            var pin = document.createElement('div');
-            pin.className = 'sig-pin';
-            pin.style.left = xPct + '%';
-            pin.style.top = yPct + '%';
-            pin.textContent = '✍️';
-            pageElRef.appendChild(pin);
-            sigPlacementValue = { page: pageNum, xPct: xPct, yPct: yPct };
-            sigPlacementStatus.textContent = '✓ Poziția setată pe pagina ' + pageNum + '.';
-            sigPlacementClearBtn.style.display = '';
-          });
-        })(i, pageEl, canvas);
-      }
-      if (pdf.numPages > maxPages) {
-        var note = document.createElement('div');
-        note.className = 'state-msg';
-        note.textContent = '(' + (pdf.numPages - maxPages) + ' pagini omise aici — dacă locul semnăturii e mai departe în document, previzualizarea nu ajunge acolo)';
-        sigPlacementPreview.appendChild(note);
-      }
+      var pages = await renderPdfBufferToPages(buffer, sigPlacementPreview, 15);
+      pages.forEach(function (page) {
+        page.canvas.addEventListener('click', function (e) {
+          var rect = page.canvas.getBoundingClientRect();
+          var xPct = ((e.clientX - rect.left) / rect.width) * 100;
+          var yPct = ((e.clientY - rect.top) / rect.height) * 100;
+          sigPlacementPreview.querySelectorAll('.sig-pin').forEach(function (p) { p.remove(); });
+          var pin = document.createElement('div');
+          pin.className = 'sig-pin';
+          pin.style.left = xPct + '%';
+          pin.style.top = yPct + '%';
+          pin.textContent = '✍️';
+          page.el.appendChild(pin);
+          sigPlacementValue = { page: page.pageNum, xPct: xPct, yPct: yPct };
+          sigPlacementStatus.textContent = '✓ Poziția setată pe pagina ' + page.pageNum + '.';
+          sigPlacementClearBtn.style.display = '';
+        });
+      });
     } catch (err) {
       sigPlacementPreview.innerHTML = '<div class="state-msg error">Nu s-a putut încărca previzualizarea: ' + escapeHtml(err.message || String(err)) + '</div>';
     }
   }
 
   sigPlacementToggle.addEventListener('click', renderSigPlacementPreviewIfNeeded);
+
+  function loadImageEl(url) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('nu s-a putut încărca imaginea semnăturii')); };
+      img.src = url;
+    });
+  }
+
+  // --- post-signing signature editor: reposition/resize/fade the *cosmetic* stamped
+  // copy after the fact. Never touches the original file, the hash, or the audit chain —
+  // only signed_documents.stamped_file_path (see migration 010's trigger, which enforces
+  // this at the database level too, not just in this client code). ---
+  var sigEditToggle = document.getElementById('sigEditToggle');
+  var sigEditBody = document.getElementById('sigEditBody');
+  var sigEditPreview = document.getElementById('sigEditPreview');
+  var sigEditWidth = document.getElementById('sigEditWidth');
+  var sigEditOpacity = document.getElementById('sigEditOpacity');
+  var sigEditSaveBtn = document.getElementById('sigEditSaveBtn');
+  var sigEditStatus = document.getElementById('sigEditStatus');
+  var sigEditCollapsible = initCollapsible(sigEditToggle, sigEditBody, false);
+  var sigEditState = null;
+
+  function resetSigEditor() {
+    sigEditState = null;
+    sigEditPreview.innerHTML = '';
+    sigEditStatus.textContent = '';
+    sigEditWidth.value = 130;
+    sigEditOpacity.value = 100;
+    sigEditCollapsible.close();
+  }
+
+  function attachSigEditDrag() {
+    var overlay = sigEditState.overlay;
+    var dragging = false;
+    overlay.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      overlay.setPointerCapture(e.pointerId);
+    });
+    overlay.addEventListener('pointermove', function (e) {
+      if (!dragging || !sigEditState) return;
+      var rect = sigEditState.pageEl.getBoundingClientRect();
+      var xPct = Math.min(Math.max(((e.clientX - rect.left) / rect.width) * 100, 0), 100);
+      var yPct = Math.min(Math.max(((e.clientY - rect.top) / rect.height) * 100, 0), 100);
+      sigEditState.xPct = xPct;
+      sigEditState.yPct = yPct;
+      overlay.style.left = xPct + '%';
+      overlay.style.top = yPct + '%';
+    });
+    overlay.addEventListener('pointerup', function () { dragging = false; });
+    overlay.addEventListener('pointercancel', function () { dragging = false; });
+  }
+
+  function attachSigEditPageClicks(pages) {
+    pages.forEach(function (page) {
+      page.canvas.addEventListener('click', function (e) {
+        if (!sigEditState) return;
+        var rect = page.canvas.getBoundingClientRect();
+        var xPct = ((e.clientX - rect.left) / rect.width) * 100;
+        var yPct = ((e.clientY - rect.top) / rect.height) * 100;
+        sigEditState.pageEl = page.el;
+        sigEditState.pageNum = page.pageNum;
+        sigEditState.pageScale = page.scale;
+        sigEditState.xPct = xPct;
+        sigEditState.yPct = yPct;
+        page.el.appendChild(sigEditState.overlay);
+        sigEditState.overlay.style.left = xPct + '%';
+        sigEditState.overlay.style.top = yPct + '%';
+      });
+    });
+  }
+
+  async function renderSigEditorIfNeeded(row) {
+    if (sigEditState && sigEditState.rowId === row.id) return;
+    sigEditPreview.innerHTML = '<div class="state-msg">Se încarcă…</div>';
+    try {
+      if (!row.documents || !row.documents.file_path) throw new Error('Documentul original nu a fost găsit.');
+      var docUrl = sb.storage.from('documents').getPublicUrl(row.documents.file_path).data.publicUrl;
+      var docResp = await fetch(docUrl);
+      if (!docResp.ok) throw new Error('nu s-a putut descărca documentul original');
+      var docBuf = await docResp.arrayBuffer();
+
+      var sigUrl = await getSignedImageUrl(row.signature_path);
+      var sigImg = await loadImageEl(sigUrl);
+
+      var pages = await renderPdfBufferToPages(docBuf, sigEditPreview, 15);
+      if (pages.length === 0) throw new Error('Documentul nu are pagini de afișat.');
+      var startPage = pages[pages.length - 1]; // default: last page, same fallback convention used everywhere else
+
+      var overlay = document.createElement('img');
+      overlay.src = sigUrl;
+      overlay.alt = 'semnătură';
+      overlay.className = 'sig-edit-overlay';
+      overlay.draggable = false;
+      overlay.style.width = sigEditWidth.value + 'px';
+      overlay.style.left = '50%';
+      overlay.style.top = '50%';
+      overlay.style.opacity = Number(sigEditOpacity.value) / 100;
+      startPage.el.appendChild(overlay);
+
+      sigEditState = {
+        rowId: row.id,
+        row: row,
+        docBuf: docBuf,
+        sigUrl: sigUrl,
+        aspect: sigImg.naturalHeight / sigImg.naturalWidth,
+        overlay: overlay,
+        pageEl: startPage.el,
+        pageNum: startPage.pageNum,
+        pageScale: startPage.scale,
+        xPct: 50,
+        yPct: 50
+      };
+
+      attachSigEditDrag();
+      attachSigEditPageClicks(pages);
+    } catch (err) {
+      sigEditPreview.innerHTML = '<div class="state-msg error">Nu s-a putut încărca editorul: ' + escapeHtml(err.message || String(err)) + '</div>';
+    }
+  }
+
+  sigEditToggle.addEventListener('click', function () {
+    if (currentRow) renderSigEditorIfNeeded(currentRow);
+  });
+
+  sigEditWidth.addEventListener('input', function () {
+    if (sigEditState) sigEditState.overlay.style.width = sigEditWidth.value + 'px';
+  });
+  sigEditOpacity.addEventListener('input', function () {
+    if (sigEditState) sigEditState.overlay.style.opacity = Number(sigEditOpacity.value) / 100;
+  });
+
+  sigEditSaveBtn.addEventListener('click', async function () {
+    if (!sigEditState) return;
+    var state = sigEditState;
+    sigEditSaveBtn.disabled = true;
+    sigEditSaveBtn.textContent = 'Se salvează…';
+    sigEditStatus.textContent = '';
+    try {
+      var pdfDoc = await PDFLib.PDFDocument.load(state.docBuf);
+      var sigResp = await fetch(state.sigUrl);
+      if (!sigResp.ok) throw new Error('nu s-a putut descărca semnătura');
+      var sigBuf = await sigResp.arrayBuffer();
+      var pngImage = await pdfDoc.embedPng(sigBuf);
+      var pages = pdfDoc.getPages();
+      var pageIndex = state.pageNum - 1;
+      if (pageIndex < 0 || pageIndex >= pages.length) throw new Error('Pagina selectată nu mai există în document.');
+      var page = pages[pageIndex];
+
+      // Matches exactly what's shown on screen: the overlay <img> is centered on
+      // (xPct, yPct) via CSS transform:translate(-50%,-50%), so the saved stamp must be
+      // centered on the same point too, not offset — unlike the driver's small pin
+      // placeholder, here the admin is looking at and positioning the real image, so
+      // what they see must be exactly what gets saved.
+      var stampW = Number(sigEditWidth.value) / state.pageScale; // on-screen CSS px -> PDF points for this page's render scale
+      var stampH = stampW * state.aspect;
+      var x = Math.min(Math.max((state.xPct / 100) * page.getWidth() - stampW / 2, 10), page.getWidth() - stampW - 10);
+      var pointYBottomUp = page.getHeight() - (state.yPct / 100) * page.getHeight();
+      var y = Math.min(Math.max(pointYBottomUp - stampH / 2, 10), page.getHeight() - stampH - 10);
+      var opacity = Number(sigEditOpacity.value) / 100;
+
+      page.drawImage(pngImage, { x: x, y: y, width: stampW, height: stampH, opacity: opacity });
+      var outBytes = await pdfDoc.save();
+      var outBlob = new Blob([outBytes], { type: 'application/pdf' });
+
+      var newPath = (state.row.document_id || state.row.id) + '_admin' + Date.now() + '.pdf';
+      var uploadResult = await sb.storage.from('signed_files').upload(newPath, outBlob, { contentType: 'application/pdf' });
+      if (uploadResult.error) throw uploadResult.error;
+
+      var updateResult = await sb.from('signed_documents').update({ stamped_file_path: newPath }).eq('id', state.row.id);
+      if (updateResult.error) throw updateResult.error;
+
+      state.row.stamped_file_path = newPath;
+      var stampedUrl = sb.storage.from('signed_files').getPublicUrl(newPath).data.publicUrl;
+      var mFileViewerEl = document.getElementById('mFileViewer');
+      mFileViewerEl.innerHTML = docFileViewerHtml(state.row.documents ? state.row.documents.file_type : 'pdf', stampedUrl);
+      document.getElementById('mFileOpenLink').href = stampedUrl;
+      sigEditStatus.textContent = '✓ Salvat — previzualizarea de mai sus a fost actualizată.';
+      loadAll();
+    } catch (err) {
+      sigEditStatus.textContent = 'Eroare la salvare: ' + (err.message || JSON.stringify(err));
+    } finally {
+      sigEditSaveBtn.disabled = false;
+      sigEditSaveBtn.textContent = 'Salvează';
+    }
+  });
 
   function addFilesToStaging(fileList) {
     Array.prototype.slice.call(fileList || []).forEach(function (f) {
@@ -1704,6 +1936,14 @@
     dossierLinkBtn.textContent = 'Link pentru tot dosarul';
     dossierLinkBtn.onclick = function () { generateDossierLink(driverId, dossierLinkBtn); };
 
+    // Admin-only, and only meaningful to try when there's nothing to lose — actual
+    // enforcement (blocking a driver with any documents/dossier links) lives in the
+    // migration 010 RLS policy; this client-side check just avoids a pointless round trip.
+    deleteDriverBtn.style.display = currentRole === 'admin' ? '' : 'none';
+    deleteDriverBtn.disabled = false;
+    deleteDriverBtn.textContent = 'Șterge șoferul';
+    deleteDriverBtn.onclick = function () { deleteDriver(dr, deleteDriverBtn); };
+
     if (isDriverSwitch) docSearchInput.value = '';
     renderDocsList(driverId);
 
@@ -1804,6 +2044,35 @@
     }
   }
 
+  async function deleteDriver(dr, btn) {
+    driverError.classList.remove('show');
+    var existingDocs = docsByDriver[dr.id] || [];
+    if (existingDocs.length > 0) {
+      driverError.textContent = 'Șterge mai întâi documentele acestui șofer — un șofer cu documente (mai ales semnate) nu poate fi șters niciodată.';
+      driverError.classList.add('show');
+      return;
+    }
+    if (!confirm('Ștergi definitiv șoferul „' + dr.full_name + '"? Acțiunea nu poate fi anulată.')) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Se șterge…';
+    try {
+      var delResult = await sb.from('drivers').delete().eq('id', dr.id);
+      if (delResult.error) throw delResult.error;
+      selectedDriverId = null;
+      showEmptyDetail();
+      await loadAll();
+    } catch (err) {
+      // Most likely cause if this fires despite the empty-docs check above: the driver
+      // still has a dossier link on file (not loaded client-side, so not pre-checked) —
+      // the RLS policy in migration 010 is the real, final word either way.
+      driverError.textContent = 'Nu s-a putut șterge șoferul: ' + (err.message || JSON.stringify(err));
+      driverError.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Șterge șoferul';
+    }
+  }
+
   submitDriverBtn.addEventListener('click', async function () {
     driverError.classList.remove('show');
     var fullName = newDriverName.value.trim();
@@ -1890,6 +2159,8 @@
     signedDetail.style.display = 'block';
     pendingDetail.style.display = 'none';
     auditCollapsible.close();
+    resetSigEditor();
+    sigEditToggle.style.display = (currentRole === 'admin' && row.documents && row.documents.file_path) ? '' : 'none';
 
     document.getElementById('mDocId').textContent = row.document_id;
     document.getElementById('mDriver').textContent = row.driver_name;
