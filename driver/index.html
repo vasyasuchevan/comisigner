@@ -1040,7 +1040,8 @@
   // this runs — this only produces a nicer-looking copy for people to look at in /office/.
   // Best-effort: any failure here must never block the actual (legally meaningful) signing.
 
-  var SIGNATURE_STAMP_WIDTH_PT = 130;
+  var SIGNATURE_STAMP_WIDTH_PT = 95; // smaller footprint = less likely to collide with a nearby line of text
+  var SIGNATURE_STAMP_GAP_PT = 3;
 
   function dataUrlToUint8Array(dataUrl) {
     var binary = atob(dataUrl.split(',')[1]);
@@ -1060,11 +1061,16 @@
     if (spot && spot.pageNum >= 1 && spot.pageNum <= pages.length) {
       pageIndex = spot.pageNum - 1;
       var page = pages[pageIndex];
-      // Center the stamp on the point (x AND y) — it must match where the on-screen pin
-      // is drawn (also centered on this same point, via CSS translate(-50%,-50%)), or the
-      // final PDF ends up visibly offset from where the driver tapped/saw the marker.
+      // Center horizontally on the point — must match where the on-screen pin is drawn
+      // (also centered on this same point via CSS translate(-50%,-50%)), or the final PDF
+      // ends up visibly offset sideways from where the driver tapped/saw the marker.
       x = Math.min(Math.max(spot.bbox.x1 / spot.scale - stampW / 2, 10), page.getWidth() - stampW - 10);
-      y = Math.min(Math.max(page.getHeight() - (spot.bbox.y1 / spot.scale) - stampH / 2, 10), page.getHeight() - stampH - 10);
+      // Vertically, sit the stamp ABOVE the point instead of centered on it — like signing
+      // above a blank line rather than through it. Centering made the stamp reach both up
+      // AND down from a detected/tapped line, so on single-spaced text it routinely clipped
+      // whatever line sat just above the signature line too.
+      var pointYBottomUp = page.getHeight() - (spot.bbox.y1 / spot.scale);
+      y = Math.min(Math.max(pointYBottomUp + SIGNATURE_STAMP_GAP_PT, 10), page.getHeight() - stampH - 10);
     } else {
       pageIndex = pages.length - 1;
       x = pages[pageIndex].getWidth() - stampW - 40;
