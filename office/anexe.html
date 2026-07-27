@@ -81,7 +81,7 @@
         <div><label>Nr. CIM (din contract)</label><input type="text" id="fCimNr" placeholder="ex. 482"></div>
         <div><label>Data CIM</label><input type="text" id="fCimData" placeholder="ZZ.LL.AAAA"></div>
       </div>
-      <p class="small" style="margin:8px 0 0">Numărul de înregistrare/act se atribuie automat. Semnătura reală a lucrătorului se adaugă la pasul următor al implementării.</p>
+      <p class="small" style="margin:8px 0 0">Numărul de înregistrare/act se atribuie automat. Semnătura folosită este ultima semnătură a șoferului din sistem (bucket <code>signatures</code>), aplicată automat pe ambele locuri.</p>
       <button class="btn" id="genBtn" style="margin-top:12px" disabled>Generează și adaugă în dosar</button>
       <div class="status" id="genStatus"></div>
     </section>
@@ -161,6 +161,28 @@
   function todayRo(){ var d=new Date(),p=function(n){return String(n).padStart(2,'0');}; return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear(); }
   async function sha256Hex(buf){ var h=await crypto.subtle.digest('SHA-256',buf); return Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,'0');}).join(''); }
 
+  // Fetch the driver's most recent signature (PNG data URL) from the existing signing system.
+  // Signatures live in signed_documents.signature_path -> `signatures` bucket; the driver is
+  // reached via document_ref -> documents.driver_id. Returns null if the driver never signed.
+  async function fetchDriverSignature(driverId){
+    var docs = await sb.from('documents').select('id').eq('driver_id', driverId);
+    if (docs.error || !docs.data || !docs.data.length) return null;
+    var ids = docs.data.map(function(d){ return d.id; });
+    var sd = await sb.from('signed_documents')
+      .select('signature_path, signed_at')
+      .in('document_ref', ids)
+      .not('signature_path', 'is', null)
+      .order('signed_at', { ascending: false })
+      .limit(1);
+    if (sd.error || !sd.data || !sd.data.length) return null;
+    var signed = await sb.storage.from('signatures').createSignedUrl(sd.data[0].signature_path, 600);
+    if (signed.error || !signed.data) return null;
+    var resp = await fetch(signed.data.signedUrl);
+    if (!resp.ok) return null;
+    var blob = await resp.blob();
+    return await new Promise(function(resolve){ var fr = new FileReader(); fr.onload = function(){ resolve(fr.result); }; fr.onerror = function(){ resolve(null); }; fr.readAsDataURL(blob); });
+  }
+
   var els = ['driverSel','tplSel','idFile','idPreview','ocrProgress','ocrStatus','readBtn','typePill','fNume','fPrenume','fCnp','fSerieNr','fCimNr','fCimData','genBtn','genStatus','resultBanner','svcUrl','cnpDerived']
     .reduce(function(o,id){o[id]=$(id);return o;},{});
   els.ocrBar = document.querySelector('#ocrProgress>i');
@@ -234,14 +256,20 @@
         data_azi: todayRo()
       };
 
-      // 2) call the generator service
+      // 2) pull the driver's existing signature (applied on both spots by the service)
+      setStatus(els.genStatus,'Se caută semnătura șoferului…','');
+      var signature = await fetchDriverSignature(driverId);
+
+      // 3) call the generator service
       setStatus(els.genStatus,'Se generează documentul (LibreOffice)…','');
-      var resp = await fetch(svc+'/generate/'+els.tplSel.value, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:fields})});
+      var payload = { fields: fields };
+      if (signature) payload.signaturePngBase64 = signature;
+      var resp = await fetch(svc+'/generate/'+els.tplSel.value, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(!resp.ok){ var t=await resp.text(); throw new Error('serviciu: '+resp.status+' '+t.slice(0,140)); }
       var pdfBlob = await resp.blob();
       var pdfBuf = await pdfBlob.arrayBuffer();
 
-      // 3) upload into the driver's dossier (same shape as office uploadOneDocument)
+      // 4) upload into the driver's dossier (same shape as office uploadOneDocument)
       setStatus(els.genStatus,'Se adaugă în dosar…','');
       var documentId = 'DOC-'+Date.now()+'-0';
       var filePath = documentId+'.pdf';
@@ -259,7 +287,10 @@
       if(ins.error) throw new Error('insert: '+ins.error.message);
 
       setStatus(els.genStatus,'','');
-      els.resultBanner.textContent = '✓ Anexa 5 (nr. '+n+') a fost generată și adăugată în dosarul șoferului. Deschide panoul biroului pentru a o vedea / genera linkul.';
+      els.resultBanner.className = 'banner ' + (signature ? 'ok' : 'err');
+      els.resultBanner.textContent = '✓ Anexa 5 (nr. '+n+') a fost generată și adăugată în dosarul șoferului. '
+        + (signature ? 'Semnătura șoferului a fost aplicată automat pe ambele locuri.'
+                     : '⚠ Șoferul nu are încă o semnătură în sistem — documentul a fost adăugat NESEMNAT (semnează întâi un document prin aplicația șoferului).');
       els.resultBanner.classList.remove('hidden');
     }catch(e){
       setStatus(els.genStatus, String((e&&e.message)||e), 'err');
