@@ -640,7 +640,9 @@
 
   function setupSignaturePad() {
     signaturePad = new SignaturePad(canvas, {
-      backgroundColor: 'rgb(255,255,255)',
+      backgroundColor: 'rgba(0,0,0,0)', // transparent, not opaque white — so the saved PNG
+      // has only the ink visible (like a logo), letting the office opacity/overlay editor
+      // fade just the signature itself instead of a solid white box around it.
       penColor: 'rgb(20,20,20)'
     });
     window.addEventListener('resize', resizeCanvas);

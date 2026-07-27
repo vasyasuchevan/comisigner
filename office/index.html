@@ -1500,7 +1500,9 @@
       var sigUrl = await getSignedImageUrl(row.signature_path);
       var sigImg = await loadImageEl(sigUrl);
 
-      var pages = await renderPdfBufferToPages(docBuf, sigEditPreview, 15);
+      // pdf.js takes ownership of (detaches) whatever ArrayBuffer it's given — pass it a
+      // copy so the original docBuf stays usable for pdf-lib later, at save time.
+      var pages = await renderPdfBufferToPages(docBuf.slice(0), sigEditPreview, 15);
       if (pages.length === 0) throw new Error('Documentul nu are pagini de afișat.');
       var startPage = pages[pages.length - 1]; // default: last page, same fallback convention used everywhere else
 
